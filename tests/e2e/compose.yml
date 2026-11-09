@@ -1,0 +1,76 @@
+name: flightdb-e2e
+
+services:
+  postgis:
+    image: postgis/postgis:16-3.4
+    platform: linux/amd64
+    environment:
+      POSTGRES_DB: flightdb
+      POSTGRES_USER: flightdb_admin
+      POSTGRES_PASSWORD: admin
+      DB_INGEST_PASSWORD: ingest
+      DB_READONLY_PASSWORD: reader
+    volumes:
+      - ../../database/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "55433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flightdb_admin -d flightdb"]
+      interval: 2s
+      retries: 60
+
+  fake-readsb:
+    image: python:3.12-slim
+    working_dir: /fixtures
+    command: ["python", "-m", "synthetic.serve"]
+    volumes:
+      - ../fixtures:/fixtures:ro
+
+  receiver-ssh:
+    build: ./receiver-ssh
+    volumes:
+      - receiver-data:/data
+      - keys:/keys
+
+  recorder:
+    build: ../../receiver/recorder
+    user: "1000:1000"
+    depends_on:
+      receiver-ssh:
+        condition: service_healthy
+      fake-readsb:
+        condition: service_started
+    environment:
+      RECEIVER_ID: TEST
+      READSB_URL: http://fake-readsb/data/aircraft.json
+      RECORDER_DATA_DIR: /data
+      RECORDER_ROTATE_SECONDS: "10"
+      RECORDER_SYNTHETIC: "1"
+      RECORDER_NTP_SERVER: 127.0.0.1
+    volumes:
+      - receiver-data:/data
+
+  ingest:
+    build:
+      context: ../..
+      dockerfile: ingest/Dockerfile
+    depends_on:
+      postgis:
+        condition: service_healthy
+      receiver-ssh:
+        condition: service_healthy
+    environment:
+      INGEST_ADMIN_DSN: postgresql://flightdb_admin:admin@postgis:5432/flightdb
+      INGEST_DB_DSN: postgresql://flightdb_ingest:ingest@postgis:5432/flightdb
+      RECEIVER_HOST: receiver-ssh
+      RECEIVER_SSH_USER: flightdb-sync
+      INGEST_SSH_KEY_READ: /keys/ingest_read
+      INGEST_SSH_KEY_ACK: /keys/ingest_ack
+      INGEST_INTERVAL_S: "5"
+      FLIGHTDB_ENV: test
+    volumes:
+      - keys:/keys:ro
+
+volumes:
+  receiver-data:
+  keys:
