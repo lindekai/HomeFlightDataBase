@@ -55,8 +55,13 @@ Empfang und Verarbeitung sind räumlich getrennt:
 
 Grobe Abschätzung (vor Messung): Rohdaten-Archiv ca. 100–300 GB pro Jahr, Datenbank ca. 100–200 GB pro Jahr bei voller Auflösung. Wird nach Meilenstein 2 mit realen Werten überprüft.
 
+## Weiterführend
+
+- Datenmodell: [data-model.md](data-model.md)
+- Deployment: [deployment-nas.md](deployment-nas.md), [deployment-receiver.md](deployment-receiver.md)
+- Design Meilenstein 2: [superpowers/specs/2026-11-09-meilenstein-2-empfang-speicherung-design.md](superpowers/specs/2026-11-09-meilenstein-2-empfang-speicherung-design.md)
+
 ## Offene Punkte
 
-- Modell des vorhandenen Raspberry Pi
-- Eignung vorhandener DVB-T-Sticks als SDR
-- Abtastintervall und räumliche Eingrenzung der gespeicherten Positionen (nach ersten Messdaten)
+- Modell des vorhandenen Raspberry Pi und Eignung vorhandener DVB-T-Sticks
+- Abnahme Meilenstein 2 mit echter Hardware (7 Tage Dauerbetrieb, Speicherbedarf messen)

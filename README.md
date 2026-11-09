@@ -9,7 +9,7 @@ Ziel ist eine nachvollziehbare, statistisch belastbare Dokumentation von Überfl
 ## Status
 
 - Meilenstein 1 – Bestandsaufnahme und Architektur: abgeschlossen (offen: Prüfung der vorhandenen Empfangshardware)
-- Meilenstein 2 – Empfang und Speicherung: Design abgestimmt, Umsetzungsplan in Arbeit
+- Meilenstein 2 – Empfang und Speicherung: Software fertig und getestet, Abnahme mit Hardware ausstehend
 
 ## Überblick
 
@@ -30,6 +30,9 @@ Details: [docs/architecture.md](docs/architecture.md)
 | [docs/hardware.md](docs/hardware.md) | Empfangshardware und Montage |
 | [docs/decisions/](docs/decisions/) | Architekturentscheidungen (ADR) |
 | [docs/superpowers/specs/](docs/superpowers/specs/) | Designspezifikationen je Meilenstein |
+| [docs/data-model.md](docs/data-model.md) | Datenmodell und Herkunftskette |
+| [docs/deployment-nas.md](docs/deployment-nas.md) | Installation auf dem NAS |
+| [docs/deployment-receiver.md](docs/deployment-receiver.md) | Installation der Empfangsstation |
 
 ## Meilensteine
 
@@ -39,6 +42,19 @@ Details: [docs/architecture.md](docs/architecture.md)
 4. Flugroutenvergleich
 5. Berichte und n8n-Automatisierung
 6. Qualitätssicherung
+
+## Entwicklung
+
+```bash
+python3.12 -m venv .venv && . .venv/bin/activate && pip install -r requirements-dev.txt
+bash scripts/install-hooks.sh   # benötigt lokal config/local/sensitive-patterns.txt
+docker compose -f tests/compose.test.yml up -d
+export TEST_ADMIN_DSN=postgresql://postgres:test@localhost:55432/postgres
+pytest            # Unit- und DB-Tests
+pytest -m e2e     # End-to-End mit Docker
+```
+
+Tests verwenden ausschließlich synthetische Daten (Empfänger `TEST`, ICAO24 `ff…`).
 
 ## Konfiguration und Datenschutz
 
