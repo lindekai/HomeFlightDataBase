@@ -47,24 +47,28 @@ Image-Versionen werden fest angegeben (kein `latest`). Standort, Feeder-Schlüss
 Ablauf je Sekunde:
 
 1. `aircraft.json` von readsb lesen (HTTP im Docker-Netz).
-2. Eine Zeile an die aktuelle Stundendatei anhängen:
-   `{"recorder_ts": <UTC ISO-8601>, "receiver_id": "<id>", "recorder_version": "<x.y.z>", "data": <aircraft.json unverändert>}`
-3. Dateiname: `<receiver_id>/JJJJ/MM/TT/HH.ndjson.gz` (UTC), im Verzeichnis `current/`.
+2. Hat sich der readsb-Zeitstempel `now` geändert, eine Zeile an die aktuelle Datei anhängen:
+   `{"type": "snapshot", "recorder_ts": <UTC ISO-8601>, "receiver_id": "<id>", "recorder_version": "<x.y.z>", "data": <aircraft.json unverändert>}`
+   Alle Zeilentypen (`snapshot`, `gap`, `clock`, `status`) tragen `type`, `recorder_ts`, `receiver_id` und `recorder_version`; bei Testbetrieb zusätzlich `"synthetic": true`.
+3. Die aktuelle Datei liegt **unkomprimiert** in `current/<receiver_id>/JJJJ/MM/TT/<JJJJMMTT>T<HHMMSS>Z.ndjson`; der Zeitstempel im Namen ist der Beginn der Datei (UTC). Jede Zeile wird sofort an das Betriebssystem übergeben (`flush`).
 
-Stundenwechsel:
+Periodenwechsel (Standard: volle Stunde, konfigurierbar über `RECORDER_ROTATE_SECONDS`):
 
-1. Datei schließen, SHA-256 berechnen, `<datei>.sha256` schreiben.
-2. Beide Dateien atomar nach `complete/` verschieben.
+1. Datei schließen, gzip-komprimieren, SHA-256 berechnen.
+2. Atomar nach `complete/…/<name>.ndjson.gz` verschieben, danach `<name>.ndjson.gz.sha256` (Format wie `sha256sum`) anlegen. Erst mit der `.sha256` gilt eine Datei als abholbereit.
 
-Lücken: Liefert readsb keine Daten oder ist der readsb-Zeitstempel `now` älter als 5 s, wird eine Zeile `{"type": "gap", "from": …, "to": …, "reason": …}` geschrieben, sobald Daten wieder fließen.
+Lücken: Liefert readsb keine Daten oder ist der readsb-Zeitstempel `now` älter als 5 s, wird eine Zeile `{"type": "gap", "from": …, "to": …, "reason": "no_data" | "stale_data"}` geschrieben, sobald Daten wieder fließen bzw. beim Beenden. Beim Start wird die Zeit seit der letzten Dateiänderung als Lücke `recorder_restart` protokolliert.
 
-Unsauberes Ende (Absturz, Stromausfall): Beim Start wird eine vorhandene Datei in `current/` bis zur letzten vollständigen Zeile übernommen, abgeschlossen und im Dateinamen als `.partial` gekennzeichnet; die Unterbrechung wird als Lücke protokolliert.
+Unsauberes Ende (Absturz, Stromausfall): Beim Start wird eine vorhandene Datei in `current/` bis zur letzten vollständigen Zeile übernommen und als `<name>.partial.ndjson.gz` abgeschlossen. Beim regulären Beenden wird die laufende Datei ebenfalls als `.partial` abgeschlossen.
 
-Aufräumen: Dateien in `complete/` werden gelöscht, wenn eine Quittung in `acked/` existiert **und** die Datei älter als `RECEIVER_RETENTION_DAYS` (Standard 7) ist. Ohne Quittung wird nie gelöscht. Unter 10 % freiem Speicher: Warnung im Log und im Status, kein Löschen.
+Stündlich: Zeile `{"type": "clock", "offset_s": …}` (siehe 3.3) und `{"type": "status", "free_bytes": …, "free_ratio": …}` zum freien Pufferspeicher.
+
+Aufräumen (stündlich): Dateien in `complete/` werden gelöscht, wenn eine Quittung in `acked/` existiert **und** die Datei älter als `RECEIVER_RETENTION_DAYS` (Standard 7) ist. Ohne Quittung wird nie gelöscht. Verwaiste Quittungen (Datei fehlt) werden nach derselben Frist entfernt. Unter 10 % freiem Speicher: Warnung im Log und im Status, unquittierte Dateien bleiben erhalten.
 
 ### 3.3 Betriebssystem
 
-- chrony als NTP-Client; der recorder liest den Offset aus und vermerkt ihn stündlich als Zeile `{"type": "clock", "offset_s": …}`. Offset > 1 s: Warnung.
+- chrony als NTP-Client des Pi. Der recorder misst die Abweichung der Systemuhr stündlich selbst per SNTP-Abfrage (`RECORDER_NTP_SERVER`) und vermerkt sie als Zeile `{"type": "clock", "offset_s": …}` (`null`, wenn nicht messbar). Abweichung > 1 s: Warnung.
+- Container `autoheal` startet Container mit Label `autoheal=true` neu, sobald ihr Healthcheck fehlschlägt (Docker selbst startet nur beendete, nicht „unhealthy“ Container neu).
 - Datenverzeichnis bevorzugt auf USB-SSD statt SD-Karte.
 - Docker-Logrotation (`max-size`, `max-file`) für alle Container.
 
@@ -73,21 +77,27 @@ Aufräumen: Dateien in `complete/` werden gelöscht, wenn eine Quittung in `acke
 ### 4.1 Abholung
 
 - Container `ingest` läuft dauerhaft und startet alle 5 Minuten einen Durchlauf.
-- `rsync` über SSH zum Pi. Eigener Benutzer auf dem Pi, eigener Schlüssel, `rrsync` als erzwungenes Kommando: lesend nur `complete/`, schreibend nur `acked/`.
-- Es werden nur Dateien mit zugehöriger `.sha256` übertragen.
+- `rsync` über SSH zum Pi. Eigener Benutzer `flightdb-sync` auf dem Pi mit **zwei Schlüsseln** und `rrsync` als erzwungenem Kommando: Schlüssel „read“ nur lesend auf `complete/` (`rrsync -ro`), Schlüssel „ack“ nur schreibend auf `acked/` (`rrsync -wo`).
+- Übertragen werden `*.ndjson.gz` und `*.sha256`. Bereits archivierte Dateien werden über `--compare-dest=<Archiv>` übersprungen.
+- Der Host-Schlüssel des Pi wird beim ersten Kontakt gespeichert und danach geprüft (`StrictHostKeyChecking=accept-new`).
+- Schlägt die Abholung fehl (Pi nicht erreichbar), wird nur gewarnt; der Durchlauf verarbeitet trotzdem alles bereits Vorhandene.
 
 ### 4.2 Verarbeitung je Datei
 
-1. Prüfsumme verifizieren. Fehler → Quarantäne-Verzeichnis, Log-Warnung, keine Quittung.
-2. Unverändert ins Archiv kopieren: `RAW_ARCHIVE_DIR/<receiver_id>/JJJJ/MM/TT/` inkl. `.sha256`.
-3. In `raw_files` registrieren. Bereits bekannte Prüfsumme → überspringen (idempotent).
-4. Normalisieren (siehe 4.3) und per `COPY` laden – eine Transaktion pro Datei.
-5. Status in `raw_files` auf `ingested` setzen, dann Quittung `acked/<datei>.ack` auf dem Pi ablegen.
+1. Ohne `.sha256` wird die Datei übersprungen. Prüfsumme verifizieren; Fehler → Quarantäne-Verzeichnis, Log-Warnung, keine Quittung.
+2. Einlesen und Normalisieren (siehe 4.3). Nicht lesbar, `receiver_id` passt nicht zum Pfad oder Schutzsperre für Testdaten (7.1) → Quarantäne.
+3. In `raw_files` registrieren. Bereits als `ingested` bekannte Prüfsumme → überspringen und erneut quittieren (idempotent). Gleicher Pfad mit anderer Prüfsumme → Quarantäne.
+4. Unverändert ins Archiv kopieren: `RAW_ARCHIVE_DIR/<receiver_id>/JJJJ/MM/TT/` inkl. `.sha256`; Kopie per Prüfsumme verifizieren.
+5. Per `COPY` laden – eine Transaktion pro Datei – und Status `ingested` setzen.
+6. Quittung `acked/<datei>.ack` (Inhalt: Prüfsumme) auf dem Pi ablegen.
+
+Dateien mit Status `registered` oder `failed` werden zu Beginn jedes Durchlaufs aus dem Archiv erneut geladen, sofern ihre Archiv-Prüfsumme stimmt. Ist die Datenbank nicht erreichbar, bricht der Durchlauf ab; die abgeholten Dateien bleiben im Staging.
 
 ### 4.3 Normalisierung
 
-- Je Flugzeug einer Momentaufnahme mit gültiger Position: Positionszeitpunkt = `data.now − seen_pos`.
-- Duplikate (gleicher Empfänger, ICAO24, Positionszeitpunkt) werden verworfen.
+- Je Flugzeug einer Momentaufnahme mit gültiger Position: Positionszeitpunkt = `data.now − seen_pos`, gerundet auf 0,1 s (Auflösung von readsb).
+- `alt_baro = "ground"` → `on_ground = true`, barometrische Höhe leer.
+- Duplikate (gleicher Empfänger, ICAO24, Positionszeitpunkt) werden verworfen – innerhalb einer Datei und dateiübergreifend (`ON CONFLICT DO NOTHING`).
 - Quelle (`type`: adsb_icao, mlat, tisb_* …), NIC, NACp, SIL und RSSI werden übernommen.
 - Lückenzeilen → `reception_gaps`; Clock-Zeilen → Spalte in `raw_files`.
 - Einheiten unverändert wie readsb (ft, kt, ft/min), dokumentiert im Schema.
@@ -106,23 +116,25 @@ Aufräumen: Dateien in `complete/` werden gelöscht, wenn eine Quittung in `acke
 | `raw_files` | `id`, `receiver_id`, `path`, `sha256`, `size_bytes`, `period_start`, `period_end`, `partial`, `clock_offset_max_s`, `fetched_at`, `status`, `ingest_version` |
 | `reception_gaps` | `id`, `receiver_id`, `gap_start`, `gap_end`, `reason`, `raw_file_id` |
 | `aircraft` | `icao24` (PK), `registration`, `type_code`, `first_seen`, `last_seen` |
-| `positions` | `ts`, `receiver_id`, `icao24`, `callsign`, `geom` (Point, SRID 4326), `alt_baro_ft`, `alt_geom_ft`, `gs_kt`, `track_deg`, `baro_rate_fpm`, `squawk`, `source_type`, `nic`, `nac_p`, `sil`, `rssi_dbfs`, `raw_file_id` |
+| `positions` | `ts`, `receiver_id`, `icao24`, `callsign`, `geom` (Point, SRID 4326), `on_ground`, `alt_baro_ft`, `alt_geom_ft`, `gs_kt`, `track_deg`, `baro_rate_fpm`, `squawk`, `source_type`, `nic`, `nac_p`, `sil`, `rssi_dbfs`, `raw_file_id` |
 
-`positions`: Eindeutigkeit über (`receiver_id`, `icao24`, `ts`); monatliche Partitionierung über `ts`; `ingest` legt die Partitionen für den laufenden und den nächsten Monat an.
+`positions`: Primärschlüssel (`receiver_id`, `icao24`, `ts`); monatliche Partitionierung über `ts`; `ingest` legt die Partitionen für den laufenden und den nächsten Monat sowie bei Bedarf für ältere Daten an. `raw_file_id` ist bewusst ohne Fremdschlüssel (kein Zusatzindex auf der größten Tabelle); gelöscht wird bei `rebuild` über `raw_file_id` und den Zeitraum der Datei.
 
 ### 5.2 Indizes
 
 - BRIN auf `positions.ts`
 - GiST auf `positions.geom`
-- B-Tree auf `positions (icao24, ts)`
+- Flugspuren je Flugzeug über den Primärschlüssel (`receiver_id`, `icao24`, `ts`) – kein zusätzlicher B-Tree
 
 ### 5.3 Rollen
 
 | Rolle | Rechte |
 |---|---|
-| `flightdb_admin` | Eigentümer, Migrationen |
-| `flightdb_ingest` | INSERT/UPDATE auf Erfassungstabellen, Partitionen anlegen |
+| `flightdb_admin` | Eigentümer, Migrationen, Partitionen anlegen (`ingest` nutzt dafür eine eigene Admin-Verbindung) |
+| `flightdb_ingest` | SELECT/INSERT/UPDATE/DELETE auf Erfassungstabellen |
 | `flightdb_reader` | nur SELECT (n8n, Grafana) |
+
+Passwörter der Rollen setzt ein Init-Skript des PostGIS-Containers beim ersten Start aus der `.env`.
 
 ### 5.4 Migrationen
 
@@ -143,7 +155,7 @@ Letzte ingestierte Datei, Rückstand (nicht ingestierte Stunden), Anzahl und Dau
 | `ingest` | letzter Durchlauf erfolgreich und < 15 min alt |
 | `postgis` | `pg_isready` |
 
-Alle Container: `restart: unless-stopped`.
+Alle Container: `restart: unless-stopped`. Auf dem Pi startet `autoheal` „unhealthy“ Container neu. Auf dem NAS wird bewusst kein `autoheal` eingesetzt (Zugriff auf den Docker-Socket neben produktiven Containern); der Status ist im Container Manager sichtbar.
 
 ### 6.2 Störungen
 
@@ -201,8 +213,12 @@ nas/
 ingest/                Python-Paket + Dockerfile
 database/
   migrations/
+  init/                Rollen-Passwörter beim ersten Start
+  backup/              Backup-Skript
+scripts/               Git-Hooks gegen sensible Inhalte
 tests/
   fixtures/synthetic/
+  recorder/ ingest/ db/
   e2e/
 .github/workflows/ci.yml
 ```
