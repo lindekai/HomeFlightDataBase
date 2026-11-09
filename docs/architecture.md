@@ -53,7 +53,7 @@ Empfang und Verarbeitung sind räumlich getrennt:
 | PostGIS | SSD-Volume | viele kleine Schreibzugriffe, räumliche Indizes |
 | Rohdaten-Archiv, Backups | HDD-Volume | groß, selten gelesen, komprimiert |
 
-Grobe Abschätzung (vor Messung): 100–200 GB pro Jahr in der Datenbank bei voller Auflösung; deutlich weniger mit räumlicher Eingrenzung. Wird nach Meilenstein 2 mit realen Werten überprüft.
+Grobe Abschätzung (vor Messung): Rohdaten-Archiv ca. 100–300 GB pro Jahr, Datenbank ca. 100–200 GB pro Jahr bei voller Auflösung. Wird nach Meilenstein 2 mit realen Werten überprüft.
 
 ## Offene Punkte
 

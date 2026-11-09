@@ -8,7 +8,8 @@ Ziel ist eine nachvollziehbare, statistisch belastbare Dokumentation von Überfl
 
 ## Status
 
-Meilenstein 1 – Bestandsaufnahme und Architektur (in Arbeit).
+- Meilenstein 1 – Bestandsaufnahme und Architektur: abgeschlossen (offen: Prüfung der vorhandenen Empfangshardware)
+- Meilenstein 2 – Empfang und Speicherung: Design abgestimmt, Umsetzungsplan in Arbeit
 
 ## Überblick
 
@@ -28,6 +29,7 @@ Details: [docs/architecture.md](docs/architecture.md)
 | [docs/architecture.md](docs/architecture.md) | Systemarchitektur und Datenfluss |
 | [docs/hardware.md](docs/hardware.md) | Empfangshardware und Montage |
 | [docs/decisions/](docs/decisions/) | Architekturentscheidungen (ADR) |
+| [docs/superpowers/specs/](docs/superpowers/specs/) | Designspezifikationen je Meilenstein |
 
 ## Meilensteine
 
