@@ -1,0 +1,75 @@
+# Stack auf dem NAS. Start: docker compose --env-file .env up -d --build (im Ordner nas/)
+name: flightdb
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  postgis:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_INGEST_PASSWORD: ${DB_INGEST_PASSWORD}
+      DB_READONLY_PASSWORD: ${DB_READONLY_PASSWORD}
+      TZ: UTC
+    volumes:
+      - ${DB_DATA_DIR}:/var/lib/postgresql/data
+      - ../database/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "${DB_LAN_PORT:-5433}:5432"
+    shm_size: 256mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  ingest:
+    build:
+      context: ..
+      dockerfile: ingest/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgis:
+        condition: service_healthy
+    environment:
+      INGEST_ADMIN_DSN: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgis:5432/${POSTGRES_DB}
+      INGEST_DB_DSN: postgresql://flightdb_ingest:${DB_INGEST_PASSWORD}@postgis:5432/${POSTGRES_DB}
+      RECEIVER_HOST: ${RECEIVER_HOST}
+      RECEIVER_SSH_USER: ${RECEIVER_SSH_USER}
+      INGEST_SSH_KEY_READ: /ssh/ingest_read
+      INGEST_SSH_KEY_ACK: /ssh/ingest_ack
+      INGEST_INTERVAL_S: ${INGEST_INTERVAL_S:-300}
+      FLIGHTDB_ENV: production
+    volumes:
+      - ${RAW_ARCHIVE_DIR}:/archive
+      - ${INGEST_WORK_DIR}:/work
+      - ${INGEST_SSH_DIR}:/ssh:ro
+    logging: *logging
+
+  backup:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    depends_on:
+      postgis:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "/backup/backup.sh"]
+    environment:
+      PGHOST: postgis
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+      BACKUP_HOUR: ${BACKUP_HOUR:-3}
+      TZ: Europe/Berlin
+    volumes:
+      - ../database/backup:/backup:ro
+      - ${DB_BACKUP_DIR}:/dumps
+    logging: *logging

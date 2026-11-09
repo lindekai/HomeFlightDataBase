@@ -42,4 +42,4 @@ Details: [docs/architecture.md](docs/architecture.md)
 
 ## Konfiguration und Datenschutz
 
-Standortbezogene Werte (Koordinaten, Geofences), Zugangsdaten und erfasste Daten werden **nicht** versioniert. Konfiguration erfolgt über `.env` (Vorlage: [.env.example](.env.example)) und `config/local/`.
+Standortbezogene Werte (Koordinaten, Geofences), Zugangsdaten und erfasste Daten werden **nicht** versioniert. Konfiguration erfolgt über `.env`-Dateien (Vorlagen: [nas/.env.example](nas/.env.example), [receiver/.env.example](receiver/.env.example)) und `config/local/`.
