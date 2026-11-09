@@ -108,6 +108,7 @@ FROM receivers r;
 GRANT USAGE ON SCHEMA public TO flightdb_ingest, flightdb_reader;
 GRANT SELECT, INSERT, UPDATE, DELETE
   ON receivers, raw_files, reception_gaps, aircraft, positions TO flightdb_ingest;
+GRANT SELECT ON ingest_status TO flightdb_ingest;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO flightdb_ingest;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO flightdb_reader;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO flightdb_reader;
