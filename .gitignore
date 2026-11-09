@@ -1,0 +1,37 @@
+# macOS
+.DS_Store
+
+# Secrets & lokale Konfiguration (nur *.example-Vorlagen committen)
+.env
+.env.*
+!.env.example
+config/local/
+*.local.*
+
+# Standortbezogene Daten (Geofences, Empfängerposition)
+*.geojson
+!**/*.example.geojson
+
+# Erfasste Daten, Exporte, Berichte, Logs
+data/
+exports/
+reports/output/
+backups/
+*.log
+*.sql.gz
+*.dump
+
+# Screenshots / Bilder aus der Bestandsaufnahme
+screenshots/
+*.png
+*.jpg
+*.jpeg
+!docs/img/**
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Projektübergabe (enthält Ortsangaben) – nur lokal
+writing-block.md
