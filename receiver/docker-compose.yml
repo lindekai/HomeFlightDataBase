@@ -1,0 +1,114 @@
+# Stack auf dem Raspberry Pi. Start: docker compose up -d --build (im Ordner receiver/)
+# Feeder zusätzlich: docker compose --profile feeders up -d
+# Image-Digests ermittelt am 2026-11-09; Aktualisierung bewusst per Digest-Wechsel.
+name: receiver
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "5m"
+    max-file: "3"
+
+services:
+  ultrafeeder:
+    image: ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:latest@sha256:febcaead2e0a6855cce74d05b9c799d93997fc0ed1d39850dbc39a517a9999fa
+    restart: unless-stopped
+    device_cgroup_rules:
+      - "c 189:* rwm"
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb:rw
+      - ultrafeeder-globe:/var/globe_history
+    tmpfs:
+      - /run:exec,size=64M
+      - /var/log:size=32M
+    ports:
+      - "8080:80"
+    environment:
+      TZ: UTC
+      LOGLEVEL: error
+      READSB_DEVICE_TYPE: rtlsdr
+      READSB_RTLSDR_DEVICE: ${SDR_SERIAL}
+      READSB_GAIN: auto
+      READSB_ENABLE_BIASTEE: ${SDR_BIASTEE:-false}
+      READSB_LAT: ${FEEDER_LAT}
+      READSB_LON: ${FEEDER_LON}
+      READSB_ALT: ${FEEDER_ALT_M}m
+      READSB_RX_LOCATION_ACCURACY: "2"
+      READSB_STATS_RANGE: "true"
+      MLAT_USER: ${FEEDER_NAME}
+      ULTRAFEEDER_CONFIG: "adsb,in.adsb.lol,30004,beast_reduce_plus_out,uuid=${ADSBLOL_UUID};mlat,in.adsb.lol,31090,uuid=${ADSBLOL_UUID}"
+    labels:
+      autoheal: "true"
+    logging: *logging
+
+  recorder:
+    build: ./recorder
+    restart: unless-stopped
+    user: "${RECORDER_UID}:${RECORDER_GID}"
+    depends_on:
+      - ultrafeeder
+    environment:
+      RECEIVER_ID: ${RECEIVER_ID}
+      READSB_URL: http://ultrafeeder/data/aircraft.json
+      RECORDER_DATA_DIR: /data
+      RECEIVER_RETENTION_DAYS: ${RECEIVER_RETENTION_DAYS:-7}
+      RECORDER_NTP_SERVER: ${RECORDER_NTP_SERVER:-pool.ntp.org}
+    volumes:
+      - ${RECORDER_DATA_DIR}:/data
+    labels:
+      autoheal: "true"
+    logging: *logging
+
+  autoheal:
+    image: willfarrell/autoheal:latest@sha256:b44413bd16c784a2bb33e410186ce72f44ed39737ec834517458318a78e13dd9
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      AUTOHEAL_INTERVAL: "30"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    logging: *logging
+
+  fr24:
+    image: ghcr.io/sdr-enthusiasts/docker-flightradar24:latest@sha256:f4b45826c89d85a05078cd5111152c3824e62c281a372d89aaf866d105d86bca
+    profiles: ["feeders"]
+    restart: unless-stopped
+    environment:
+      BEASTHOST: ultrafeeder
+      FR24KEY: ${FR24_KEY}
+      MLAT: "yes"
+    logging: *logging
+
+  piaware:
+    image: ghcr.io/sdr-enthusiasts/docker-piaware:latest@sha256:414d4fe9b27f060003763d50c57ede1c887a7bc81c2c5b726ddb7149687b7f56
+    profiles: ["feeders"]
+    restart: unless-stopped
+    # Standort für MLAT wird auf der FlightAware-Website hinterlegt, nicht hier.
+    environment:
+      TZ: UTC
+      RECEIVER_TYPE: relay
+      BEASTHOST: ultrafeeder
+      FEEDER_ID: ${PIAWARE_FEEDER_ID}
+    tmpfs:
+      - /run:exec,size=64M
+      - /var/log
+    logging: *logging
+
+  opensky:
+    image: ghcr.io/sdr-enthusiasts/docker-opensky-network:latest@sha256:1b6f5e1d9cdce6322cae0dfea071e7cdb1014bc6f81c7f01f6276c5c5c4b0d37
+    profiles: ["feeders"]
+    restart: unless-stopped
+    environment:
+      BEASTHOST: ultrafeeder
+      LAT: ${FEEDER_LAT}
+      LONG: ${FEEDER_LON}
+      ALT: ${FEEDER_ALT_M}
+      OPENSKY_USERNAME: ${OPENSKY_USERNAME}
+      OPENSKY_SERIAL: ${OPENSKY_SERIAL}
+    tmpfs:
+      - /run:exec,size=64M
+      - /var/log
+    logging: *logging
+
+volumes:
+  ultrafeeder-globe:
