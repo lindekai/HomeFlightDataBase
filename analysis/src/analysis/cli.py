@@ -71,6 +71,13 @@ def _iteration(cfg: Config) -> None:
                 "Verfahrensdatei ungültig – bisherige Fassung bleibt aktiv",
                 extra={"error": str(e)},
             )
+        except Exception as e:
+            # Unerwarteter Fehler: nur der Typ, denn Text und Traceback könnten den Dateiinhalt
+            # zitieren. Flugbildung und Überflüge laufen trotzdem weiter.
+            log.error(
+                "Verfahrensdatei nicht verarbeitet – bisherige Fassung bleibt aktiv",
+                extra={"error": type(e).__name__},
+            )
     _log_result(run_once(cfg))
     cfg.heartbeat_file.touch()
 

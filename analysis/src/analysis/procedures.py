@@ -72,6 +72,12 @@ def _mapping(loader: _Loader, node: yaml.MappingNode, deep: bool = False) -> dic
     seen = set()
     for key_node, _ in node.value:
         key = loader.construct_object(key_node, deep=deep)
+        try:
+            hash(key)
+        except TypeError:
+            raise ProcedureError(
+                f"Zeile {key_node.start_mark.line + 1}: Schlüssel muss Text sein"
+            ) from None
         if key in seen:
             raise ProcedureError(f"Zeile {key_node.start_mark.line + 1}: Name {key!r} doppelt")
         seen.add(key)
@@ -199,6 +205,13 @@ def parse_procedures(
         constraints = p.get("constraints") or {}
         if not isinstance(constraints, dict):
             raise ProcedureError(f"{what}, Feld constraints: Zuordnung je Wegpunkt erwartet")
+        try:
+            # Wird als JSON gespeichert: Datumswerte, NaN u. Ä. vorher abweisen.
+            json.dumps(constraints, allow_nan=False)
+        except (TypeError, ValueError):
+            raise ProcedureError(
+                f"{what}, Feld constraints: nur Text, Zahlen, Listen und Zuordnungen erlaubt"
+            ) from None
         airac = p.get("airac")
 
         line = [waypoints[wp] for wp in route]
@@ -236,6 +249,8 @@ def read_procedures(
         text = path.read_text(encoding="utf-8")
     except OSError as e:
         raise ProcedureError(f"{path.name}: nicht lesbar ({e.strerror})") from e
+    except UnicodeDecodeError:
+        raise ProcedureError(f"{path.name}: nicht UTF-8") from None
     try:
         data = yaml.load(text, Loader=_Loader)
     except yaml.MarkedYAMLError as e:

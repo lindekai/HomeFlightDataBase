@@ -120,6 +120,14 @@ def test_opposite_runway_and_direction_class():
         ({"procedures__0__kind": "APP"}, "SID oder STAR"),
         ({"procedures__1__name": "WESTA1W"}, "WESTA1W, Feld name: doppelt"),
         ({"procedures": []}, "Feld procedures: fehlt oder leer"),
+        (
+            {"procedures__0__constraints": {"WESTA": {"d": date(2026, 1, 1)}}},
+            "WESTA1W, Feld constraints: nur Text, Zahlen, Listen und Zuordnungen",
+        ),
+        (
+            {"procedures__0__constraints": {"WESTA": {"alt_ft_min": float("nan")}}},
+            "WESTA1W, Feld constraints",
+        ),
     ],
 )
 def test_rejected(changes, message):
@@ -160,6 +168,25 @@ def test_yaml_duplicate_key_and_syntax(tmp_path):
     assert "45.0" not in str(e.value)
     with pytest.raises(ProcedureError, match="nicht lesbar"):
         read_procedures(tmp_path / "fehlt.yaml", **BER)
+
+
+def test_yaml_non_utf8_unhashable_key_and_date_constraint(tmp_path):
+    latin = tmp_path / "latin.yaml"
+    latin.write_bytes(b"source: M\xfcnchen\n")
+    with pytest.raises(ProcedureError, match=r"^latin.yaml: nicht UTF-8$"):
+        read_procedures(latin, **BER)
+    key = tmp_path / "key.yaml"
+    key.write_text("waypoints:\n  [1, 2]: x\n", "utf-8")
+    with pytest.raises(ProcedureError, match=r"^Zeile 2: Schlüssel muss Text sein$"):
+        read_procedures(key, **BER)
+    fixture = (ROOT / "tests" / "fixtures" / "procedures.test.yaml").read_text("utf-8")
+    dated = tmp_path / "dated.yaml"
+    dated.write_text(
+        fixture.replace("{alt_ft_min: 3000}", "{alt_ft_min: 3000, d: 2026-01-01}"),
+        "utf-8",
+    )
+    with pytest.raises(ProcedureError, match="WNORD1W, Feld constraints"):
+        read_procedures(dated, ber_lat=50.0, ber_lon=10.0, ber_radius_m=40000.0)
 
 
 def test_example_files_are_valid():
