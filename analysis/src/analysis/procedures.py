@@ -15,7 +15,9 @@ from dataclasses import asdict, dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
+import psycopg
 import yaml
+from psycopg.types.json import Jsonb
 
 from analysis.events import sector
 from analysis.geo import XY, Local, azimuth_deg, exit_point, length
@@ -54,6 +56,12 @@ class Procedure:
     def content_hash(self) -> str:
         data = json.dumps(asdict(self), sort_keys=True, default=str, ensure_ascii=False)
         return hashlib.sha256(data.encode()).hexdigest()
+
+
+@dataclass(frozen=True)
+class ProcedureSync:
+    changed: list[str]
+    removed: list[str]
 
 
 class _Loader(yaml.SafeLoader):
@@ -237,3 +245,61 @@ def read_procedures(
     except yaml.YAMLError:
         raise ProcedureError(f"{path.name}: kein gültiges YAML") from None
     return parse_procedures(data, ber_lat=ber_lat, ber_lon=ber_lon, ber_radius_m=ber_radius_m)
+
+
+_CURRENT = """
+SELECT id, content_hash FROM procedures
+WHERE name = %(name)s AND valid_from = %(valid_from)s AND superseded_at IS NULL
+"""
+
+_INSERT = """
+INSERT INTO procedures (name, kind, runway, runway_heading_deg, direction, sector, airac,
+  valid_from, valid_to, source, geom, waypoints, constraints, content_hash)
+VALUES (%(name)s, %(kind)s, %(runway)s, %(runway_heading_deg)s, %(direction)s, %(sector)s,
+  %(airac)s, %(valid_from)s, %(valid_to)s, %(source)s, ST_GeomFromEWKT(%(ewkt)s),
+  %(waypoints)s, %(constraints)s, %(content_hash)s)
+"""
+
+
+def load_procedures(conn: psycopg.Connection, procedures: list[Procedure]) -> ProcedureSync:
+    """Gleicht alle Verfahren in einer Transaktion ab; fehlende Verfahren werden geschlossen."""
+    changed: list[str] = []
+    with conn.transaction():
+        for p in procedures:
+            content_hash = p.content_hash()
+            params = {
+                "name": p.name,
+                "kind": p.kind,
+                "runway": p.runway,
+                "runway_heading_deg": p.runway_heading_deg,
+                "direction": p.direction,
+                "sector": p.sector,
+                "airac": p.airac,
+                "valid_from": p.valid_from,
+                "valid_to": p.valid_to,
+                "source": p.source,
+                "ewkt": "SRID=4326;LINESTRING("
+                + ", ".join(f"{lon} {lat}" for lat, lon in p.line)
+                + ")",
+                "waypoints": Jsonb(list(p.waypoints)),
+                "constraints": Jsonb(p.constraints),
+                "content_hash": content_hash,
+            }
+            current = conn.execute(_CURRENT, params).fetchone()
+            if current and current[1] == content_hash:
+                continue
+            if current:
+                conn.execute(
+                    "UPDATE procedures SET superseded_at = now() WHERE id = %s", (current[0],)
+                )
+            conn.execute(_INSERT, params)
+            changed.append(p.name)
+        keep = [(p.name, p.valid_from) for p in procedures]
+        removed = conn.execute(
+            "UPDATE procedures SET superseded_at = now()"
+            " WHERE superseded_at IS NULL AND NOT ((name, valid_from) IN"
+            " (SELECT * FROM unnest(%s::text[], %s::date[])))"
+            " RETURNING name",
+            ([k[0] for k in keep], [k[1] for k in keep]),
+        ).fetchall()
+    return ProcedureSync(changed, sorted(r[0] for r in removed))
