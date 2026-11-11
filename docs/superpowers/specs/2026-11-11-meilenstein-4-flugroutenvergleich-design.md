@@ -171,6 +171,10 @@ E: `review = true`, wenn alle gelten (Gründe werden in `review_reasons` aufgef�
 
 ## 6. Grafana
 
+![Mockup Dashboard „Flugrouten“ (alle Werte erfunden, Karte schematisch)](../../img/m4-dashboard-flugrouten-mockup.png)
+
+*Mockup, abgestimmte Variante „Kennzahlen zuerst“. Alle Werte, Verfahrens- und Rufzeichen sind erfunden.*
+
 **Dashboard „Flugrouten“** (Generator wie in M3):
 
 - Kennzahlen: Anteil bewertbarer Flüge (Sicherheit ≥ mittel), Abweichungen, Annäherungen, Prüffälle im Zeitraum

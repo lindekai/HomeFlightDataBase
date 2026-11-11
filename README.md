@@ -11,6 +11,7 @@ Ziel ist eine nachvollziehbare, statistisch belastbare Dokumentation von Überfl
 - Meilenstein 1 – Bestandsaufnahme und Architektur: abgeschlossen (offen: Prüfung der vorhandenen Empfangshardware)
 - Meilenstein 2 – Empfang und Speicherung: Software fertig und getestet, Abnahme mit Hardware ausstehend
 - Meilenstein 3 – Geofences und Dashboard: Software fertig und getestet, Abnahme mit Hardware ausstehend
+- Meilenstein 4 – Flugroutenvergleich: Design abgestimmt ([Spezifikation](docs/superpowers/specs/2026-11-11-meilenstein-4-flugroutenvergleich-design.md)), Umsetzung in Planung
 
 ## Überblick
 
@@ -45,6 +46,10 @@ Details: [docs/architecture.md](docs/architecture.md)
 4. Flugroutenvergleich
 5. Berichte und n8n-Automatisierung
 6. Qualitätssicherung
+
+**Vorschau Meilenstein 4** – Dashboard „Flugrouten“ (Mockup, alle Werte erfunden):
+
+![Mockup Dashboard „Flugrouten“](docs/img/m4-dashboard-flugrouten-mockup.png)
 
 ## Entwicklung
 
