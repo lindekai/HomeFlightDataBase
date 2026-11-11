@@ -18,7 +18,7 @@ class Classification:
     basis: dict
 
 
-def _vertical_rate(points: list[Point]) -> tuple[float, str]:
+def vertical_rate(points: list[Point]) -> tuple[float, str]:
     rates = [p.vrate_fpm for p in points if p.vrate_fpm is not None]
     if rates:
         return fmean(rates), "baro_rate"
@@ -48,7 +48,7 @@ def classify(
     if len(with_alt) < min_positions:
         return Classification("unknown", basis | {"reason": "zu wenige Positionen mit Höhe"})
 
-    vr, source = _vertical_rate(with_alt)
+    vr, source = vertical_rate(with_alt)
     d_first = haversine_m(with_alt[0].lat, with_alt[0].lon, ber_lat, ber_lon)
     d_last = haversine_m(with_alt[-1].lat, with_alt[-1].lon, ber_lat, ber_lon)
     change = d_last - d_first
