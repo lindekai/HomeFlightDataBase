@@ -11,7 +11,7 @@ def test_migrate_is_idempotent(db_dsns):
     with psycopg.connect(db_dsns["admin"], autocommit=True) as c:
         assert migrate(c, MIGRATIONS) == []
         versions = [r[0] for r in c.execute("SELECT version FROM schema_migrations")]
-        assert versions == ["001_erfassung.sql", "002_analyse.sql"]
+        assert versions == ["001_erfassung.sql", "002_analyse.sql", "003_routen.sql"]
 
 
 def test_positions_is_partitioned(db_dsns):
@@ -114,3 +114,35 @@ def test_coverage_view_counts_gaps_only_inside_files(db_dsns):
             "SELECT recorded_s, gap_s, day_s FROM data_coverage_daily WHERE day = '2026-11-09'"
         ).fetchone()
     assert row == (14400, 1500, 86400)
+
+
+def test_reader_reads_route_tables(db_dsns):
+    with psycopg.connect(db_dsns["reader"]) as c:
+        for name in (
+            "procedures",
+            "operating_directions",
+            "flight_assessments",
+            "route_stats_daily",
+        ):
+            c.execute(f"SELECT * FROM {name} LIMIT 1")
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            c.execute("DELETE FROM procedures")
+
+
+def test_operating_direction_window_is_aligned(db_dsns):
+    with psycopg.connect(db_dsns["admin"]) as c:
+        run = c.execute(
+            "INSERT INTO analysis_runs (kind, algo_version, params, status)"
+            " VALUES ('incremental', 'test', '{}', 'ok') RETURNING id"
+        ).fetchone()[0]
+        c.execute(
+            "INSERT INTO operating_directions (window_start, direction, n_flights, basis, run_id)"
+            " VALUES ('2026-11-09T14:30:00Z', 'west', 3, 'x', %s)",
+            (run,),
+        )
+        with pytest.raises(psycopg.errors.CheckViolation):
+            c.execute(
+                "INSERT INTO operating_directions (window_start, direction, n_flights, basis,"
+                " run_id) VALUES ('2026-11-09T14:10:00Z', 'west', 3, 'x', %s)",
+                (run,),
+            )
