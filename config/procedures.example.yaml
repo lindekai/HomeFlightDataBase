@@ -1,0 +1,43 @@
+# Vorlage für config/local/procedures.yaml (gitignored). Alle Werte sind erfunden und liegen im
+# Atlantik; echte Verfahren aus der DFS-AIP nur in config/local/ eintragen (Urheberrecht DFS).
+# Prüfen: python scripts/check_procedures.py <datei> --ber-lat 45.0 --ber-lon -30.0
+source: "erfunden, Beispiel"   # frei, erscheint in procedures.source
+waypoints:
+  ABCDE: "45 30 00.00N 030 30 00.00W"   # Grad Minuten Sekunden wie in der AIP
+  KLMNO: "45 00 00.00N 030 15 00.00W"
+  FGHIJ: [45.4, -29.9]                   # alternativ Dezimalgrad lat, lon
+  PQRST: [45.0, -29.75]
+runways:
+  "25": "45 00 16.18N 029 58 55.89W"   # Schwelle, von der aus abgeflogen bzw. auf die angeflogen wird
+  "07": "44 59 43.81N 030 01 04.10W"
+procedures:
+  - name: ABCDE1W
+    kind: SID                # SID oder STAR
+    runway: "25"
+    valid_from: 2026-11-05   # AIRAC-Beginn
+    valid_to: null           # offen
+    airac: "2611"
+    route: [KLMNO, ABCDE]    # bei SID beginnt die Linie an der Schwelle der Gegenrichtung
+    constraints:             # optional, nur zur Anzeige
+      ABCDE: {alt_ft_min: 5000, speed_kt_max: 250}
+  - name: FGHIJ1W
+    kind: STAR
+    runway: "25"
+    valid_from: 2026-11-05
+    valid_to: null
+    airac: "2611"
+    route: [FGHIJ, PQRST]    # STAR ohne Endanflug
+  - name: FGHIJ1E
+    kind: SID
+    runway: "07"
+    valid_from: 2026-11-05
+    valid_to: null
+    airac: "2611"
+    route: [PQRST, FGHIJ]
+  - name: ABCDE1E
+    kind: STAR
+    runway: "07"
+    valid_from: 2026-11-05
+    valid_to: null
+    airac: "2611"
+    route: [ABCDE, KLMNO]

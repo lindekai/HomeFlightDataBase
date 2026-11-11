@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 
-RUN pip install --no-cache-dir "psycopg[binary]==3.2.3" \
+RUN pip install --no-cache-dir "psycopg[binary]==3.2.3" "PyYAML==6.0.2" \
  && useradd -u 1000 -m analysis
 
 WORKDIR /app

@@ -1,0 +1,36 @@
+# Erfundener Flughafen um 50° N / 10° O für Tests (keine realen Verfahren).
+# Startbahn 27/09 in Ost-West-Richtung, je zwei SIDs und STARs je Betriebsrichtung.
+source: "synthetisch, Tests"
+waypoints:
+  TWEST: "49 59 59.22N 009 46 34.12E"
+  TEAST: [49.999785, 10.223854]
+  WNMID: [50.179526, 9.719131]
+  WNORD: [50.358688, 9.506626]
+  WSMID: [49.819801, 9.721225]
+  WSUED: [49.639251, 9.513954]
+  ONMID: [50.179526, 10.280869]
+  ONORD: [50.358688, 10.493374]
+  OSMID: [49.819801, 10.278775]
+  OSUED: [49.639251, 10.486046]
+runways:
+  "27": [49.999998, 10.020986]
+  "09": [49.999998, 9.979014]
+procedures:
+  # Betriebsrichtung West: Abflug nach Westen, Anflug von Osten
+  - {name: WNORD1W, kind: SID, runway: "27", valid_from: 2026-11-05, valid_to: null,
+     airac: "2611", route: [TWEST, WNMID, WNORD], constraints: {TWEST: {alt_ft_min: 3000}}}
+  - {name: WSUED1W, kind: SID, runway: "27", valid_from: 2026-11-05, valid_to: null,
+     airac: "2611", route: [TWEST, WSMID, WSUED]}
+  - {name: ONORD1W, kind: STAR, runway: "27", valid_from: 2026-11-05, valid_to: null,
+     airac: "2611", route: [ONORD, ONMID, TEAST]}
+  - {name: OSUED1W, kind: STAR, runway: "27", valid_from: 2026-11-05, valid_to: null,
+     airac: "2611", route: [OSUED, OSMID, TEAST]}
+  # Betriebsrichtung Ost: Abflug nach Osten, Anflug von Westen
+  - {name: ONORD1E, kind: SID, runway: "09", valid_from: 2026-11-05, valid_to: null,
+     airac: "2611", route: [TEAST, ONMID, ONORD]}
+  - {name: OSUED1E, kind: SID, runway: "09", valid_from: 2026-11-05, valid_to: null,
+     airac: "2611", route: [TEAST, OSMID, OSUED]}
+  - {name: WNORD1E, kind: STAR, runway: "09", valid_from: 2026-11-05, valid_to: null,
+     airac: "2611", route: [WNORD, WNMID, TWEST]}
+  - {name: WSUED1E, kind: STAR, runway: "09", valid_from: 2026-11-05, valid_to: null,
+     airac: "2611", route: [WSUED, WSMID, TWEST]}
