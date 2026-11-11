@@ -17,6 +17,11 @@ COMPOSE = ["docker", "compose", "-f", str(Path(__file__).parent / "compose.yml")
 DSN = "postgresql://flightdb_admin:admin@localhost:55433/flightdb"
 GRAFANA = "http://localhost:3002"
 CIRCLING = "('ff0000', 'ff0001', 'ff0002')"  # kreisende Flugzeuge der Attrappe
+# Abgeschlossene Flüge, deren Beginn aufgezeichnet wurde (nicht der erste, angeschnittene).
+COMPLETE = """
+  f.first_ts > (SELECT min(ts) FROM positions) + interval '5 seconds'
+  AND f.last_ts < (SELECT max(window_to) FROM analysis_runs WHERE status = 'ok')
+                  - interval '30 seconds'"""
 
 
 @pytest.fixture(scope="module")
@@ -150,14 +155,6 @@ def test_grafana_provisions_dashboards_and_runs_queries(stack):
             assert "error" not in res["results"]["A"], (name, sql, res)
 
 
-WINDOW = "to_timestamp(floor(extract(epoch FROM a.ref_ts) / 1800) * 1800)"
-# Abgeschlossene Flüge, deren Beginn aufgezeichnet wurde (nicht der erste, angeschnittene).
-COMPLETE = """
-  f.first_ts > (SELECT min(ts) FROM positions) + interval '5 seconds'
-  AND f.last_ts < (SELECT max(window_to) FROM analysis_runs WHERE status = 'ok')
-                  - interval '30 seconds'"""
-
-
 def test_routes_direction_assignment_and_one_review(stack):
     detour = (
         "SELECT count(*) FROM flight_assessments a JOIN flights f ON f.id = a.flight_id"
@@ -172,8 +169,7 @@ def test_routes_direction_assignment_and_one_review(stack):
         "SELECT count(*) FILTER (WHERE a.confidence = 'high'),"
         " count(*) FILTER (WHERE a.confidence <> 'high')"
         " FROM flight_assessments a JOIN flights f ON f.id = a.flight_id"
-        f" JOIN operating_directions o ON o.window_start = {WINDOW}"
-        f" WHERE o.direction = 'west' AND {COMPLETE}"
+        f" WHERE f.icao24 NOT IN {CIRCLING} AND {COMPLETE}"
     )
     assert high >= 3 and other == 0
     assert query("SELECT count(*) FROM analysis_runs WHERE status = 'failed'") == (0,)

@@ -89,6 +89,9 @@ services:
       ANALYSIS_BER_RADIUS_M: "25000"
       ANALYSIS_ZONES_FILE: /zones/zones.example.geojson
       ANALYSIS_PROCEDURES_FILE: /zones/procedures.test.yaml
+      # Der kurze E2E-Lauf kann eine :00/:30-Fenstergrenze kreuzen und die Flüge auf zwei
+      # Fenster verteilen; die Schwellen 3/0,8 prüfen die Unit-Tests von decide().
+      ANALYSIS_DIRECTION_MIN_FLIGHTS: "1"
     volumes:
       - ./zones.example.geojson:/zones/zones.example.geojson:ro
       - ../fixtures/procedures.test.yaml:/zones/procedures.test.yaml:ro
