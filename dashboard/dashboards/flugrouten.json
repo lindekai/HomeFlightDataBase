@@ -1,0 +1,617 @@
+{
+  "uid": "flightdb-flugrouten",
+  "title": "Flugrouten",
+  "tags": [
+    "flightdb"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "editable": true,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "type": "query",
+        "name": "procedure",
+        "label": "Verfahren",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "flightdb"
+        },
+        "query": "SELECT DISTINCT name FROM procedures WHERE superseded_at IS NULL ORDER BY name",
+        "definition": "SELECT DISTINCT name FROM procedures WHERE superseded_at IS NULL ORDER BY name",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "type": "custom",
+        "name": "confidence",
+        "label": "Sicherheit",
+        "query": "ab mittel,nur hoch,alle",
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "text": "ab mittel",
+          "value": "ab mittel"
+        },
+        "options": [
+          {
+            "text": "ab mittel",
+            "value": "ab mittel",
+            "selected": true
+          },
+          {
+            "text": "nur hoch",
+            "value": "nur hoch",
+            "selected": false
+          },
+          {
+            "text": "alle",
+            "value": "alle",
+            "selected": false
+          }
+        ]
+      },
+      {
+        "type": "custom",
+        "name": "only_review",
+        "label": "Nur Prüffälle",
+        "query": "nein,ja",
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "text": "nein",
+          "value": "nein"
+        },
+        "options": [
+          {
+            "text": "nein",
+            "value": "nein",
+            "selected": true
+          },
+          {
+            "text": "ja",
+            "value": "ja",
+            "selected": false
+          }
+        ]
+      }
+    ]
+  },
+  "links": [],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Bewertbar (Sicherheit ≥ mittel)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT 100.0 * count(*) FILTER (WHERE a.confidence IN ('high', 'medium'))\n  / nullif(count(*), 0) AS \"%\"\nFROM flight_assessments a WHERE $__timeFilter(a.ref_ts)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      },
+      "id": 1
+    },
+    {
+      "type": "stat",
+      "title": "Abweichungen (C)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS n\nFROM flight_assessments a JOIN procedures p ON p.id = a.procedure_id\nWHERE \n  $__timeFilter(a.ref_ts)\n  AND p.name IN ($procedure)\n  AND (a.confidence = 'high'\n       OR (a.confidence = 'medium' AND '$confidence' <> 'nur hoch')\n       OR '$confidence' = 'alle')\n  AND (a.review OR '$only_review' = 'nein')\n  AND a.deviation"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      },
+      "id": 2
+    },
+    {
+      "type": "stat",
+      "title": "Annäherungen (B)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS n\nFROM flight_assessments a JOIN procedures p ON p.id = a.procedure_id\nWHERE \n  $__timeFilter(a.ref_ts)\n  AND p.name IN ($procedure)\n  AND (a.confidence = 'high'\n       OR (a.confidence = 'medium' AND '$confidence' <> 'nur hoch')\n       OR '$confidence' = 'alle')\n  AND (a.review OR '$only_review' = 'nein')\n  AND a.approach"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      },
+      "id": 3
+    },
+    {
+      "type": "stat",
+      "title": "Prüffälle (E)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS n\nFROM flight_assessments a JOIN procedures p ON p.id = a.procedure_id\nWHERE \n  $__timeFilter(a.ref_ts)\n  AND p.name IN ($procedure)\n  AND (a.confidence = 'high'\n       OR (a.confidence = 'medium' AND '$confidence' <> 'nur hoch')\n       OR '$confidence' = 'alle')\n  AND (a.review OR '$only_review' = 'nein')\n  AND a.review"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      },
+      "id": 4
+    },
+    {
+      "type": "state-timeline",
+      "title": "Betriebsrichtung",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT window_start AS time, direction AS \"Betriebsrichtung\"\nFROM operating_directions WHERE $__timeFilter(window_start) ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "insertNulls": 1800000
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "west": {
+                  "color": "blue",
+                  "index": 0,
+                  "text": "West"
+                },
+                "east": {
+                  "color": "orange",
+                  "index": 1,
+                  "text": "Ost"
+                },
+                "unknown": {
+                  "color": "#808080",
+                  "index": 2,
+                  "text": "unbekannt"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "never"
+      },
+      "id": 5
+    },
+    {
+      "type": "table",
+      "title": "Je Verfahren",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 12,
+        "h": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT p.kind || ' ' || p.name AS \"Verfahren\", count(*) AS \"Flüge\",\n  round(100.0 * count(*) FILTER (WHERE a.deviation) / count(*)) AS \"Abw. %\",\n  round(percentile_cont(0.5) WITHIN GROUP (ORDER BY a.max_dev_m)) AS \"Median m\",\n  round(percentile_cont(0.95) WITHIN GROUP (ORDER BY a.max_dev_m)) AS \"95 % m\"\nFROM flight_assessments a JOIN procedures p ON p.id = a.procedure_id\nWHERE \n  $__timeFilter(a.ref_ts)\n  AND p.name IN ($procedure)\n  AND (a.confidence = 'high'\n       OR (a.confidence = 'medium' AND '$confidence' <> 'nur hoch')\n       OR '$confidence' = 'alle')\n  AND (a.review OR '$only_review' = 'nein')\nGROUP BY p.kind, p.name ORDER BY count(*) DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "id": 6
+    },
+    {
+      "type": "geomap",
+      "title": "Ideallinien, Korridor, Spuren",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 9,
+        "w": 12,
+        "h": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT p.name AS procedure, ST_Y(d.geom) AS latitude, ST_X(d.geom) AS longitude\nFROM procedures p,\n  LATERAL ST_DumpPoints(ST_Segmentize(p.geom::geography, 200)::geometry) d\nWHERE p.superseded_at IS NULL AND p.name IN ($procedure)\n  AND p.valid_from <= ($__timeTo())::timestamptz::date\n  AND (p.valid_to IS NULL OR p.valid_to > ($__timeFrom())::timestamptz::date)"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT p.name AS procedure, ST_Y(d.geom) AS latitude, ST_X(d.geom) AS longitude\nFROM procedures p,\n  LATERAL ST_DumpPoints(ST_Segmentize(ST_ExteriorRing(\n    ST_Buffer(p.geom::geography, coalesce((SELECT (params->>'corridor_m')::float8 FROM analysis_runs\n    WHERE status = 'ok' ORDER BY id DESC LIMIT 1), 1852))::geometry)::geography, 200)::geometry) d\nWHERE p.superseded_at IS NULL AND p.name IN ($procedure)\n  AND p.valid_from <= ($__timeTo())::timestamptz::date\n  AND (p.valid_to IS NULL OR p.valid_to > ($__timeFrom())::timestamptz::date)"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH sel AS (\n  SELECT a.flight_id FROM flight_assessments a JOIN procedures p ON p.id = a.procedure_id\n  WHERE \n  $__timeFilter(a.ref_ts)\n  AND p.name IN ($procedure)\n  AND (a.confidence = 'high'\n       OR (a.confidence = 'medium' AND '$confidence' <> 'nur hoch')\n       OR '$confidence' = 'alle')\n  AND (a.review OR '$only_review' = 'nein') AND a.review = false\n  ORDER BY a.ref_ts DESC LIMIT 100\n)\nSELECT f.id AS flight_id, ST_Y(d.geom) AS latitude, ST_X(d.geom) AS longitude\nFROM flights f JOIN sel ON sel.flight_id = f.id, LATERAL ST_DumpPoints(f.track) d\nWHERE d.path[1] % 5 = 1"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH sel AS (\n  SELECT a.flight_id FROM flight_assessments a JOIN procedures p ON p.id = a.procedure_id\n  WHERE \n  $__timeFilter(a.ref_ts)\n  AND p.name IN ($procedure)\n  AND (a.confidence = 'high'\n       OR (a.confidence = 'medium' AND '$confidence' <> 'nur hoch')\n       OR '$confidence' = 'alle')\n  AND (a.review OR '$only_review' = 'nein') AND a.review = true\n  ORDER BY a.ref_ts DESC LIMIT 100\n)\nSELECT f.id AS flight_id, ST_Y(d.geom) AS latitude, ST_X(d.geom) AS longitude\nFROM flights f JOIN sel ON sel.flight_id = f.id, LATERAL ST_DumpPoints(f.track) d\nWHERE d.path[1] % 5 = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "view": {
+          "id": "fit",
+          "allLayers": true,
+          "padding": 5
+        },
+        "controls": {
+          "showZoom": true,
+          "mouseWheelZoom": true
+        },
+        "basemap": {
+          "type": "default",
+          "name": "Karte"
+        },
+        "layers": [
+          {
+            "type": "markers",
+            "name": "Korridor",
+            "filterData": {
+              "id": "byRefId",
+              "options": "B"
+            },
+            "location": {
+              "mode": "coords",
+              "latitude": "latitude",
+              "longitude": "longitude"
+            },
+            "config": {
+              "style": {
+                "size": {
+                  "fixed": 1
+                },
+                "color": {
+                  "fixed": "purple"
+                }
+              }
+            }
+          },
+          {
+            "type": "markers",
+            "name": "Ideallinie",
+            "filterData": {
+              "id": "byRefId",
+              "options": "A"
+            },
+            "location": {
+              "mode": "coords",
+              "latitude": "latitude",
+              "longitude": "longitude"
+            },
+            "config": {
+              "style": {
+                "size": {
+                  "fixed": 2
+                },
+                "color": {
+                  "fixed": "blue"
+                }
+              }
+            }
+          },
+          {
+            "type": "markers",
+            "name": "Spuren",
+            "filterData": {
+              "id": "byRefId",
+              "options": "C"
+            },
+            "location": {
+              "mode": "coords",
+              "latitude": "latitude",
+              "longitude": "longitude"
+            },
+            "config": {
+              "style": {
+                "size": {
+                  "fixed": 1
+                },
+                "color": {
+                  "fixed": "green"
+                }
+              }
+            }
+          },
+          {
+            "type": "markers",
+            "name": "Prüffälle",
+            "filterData": {
+              "id": "byRefId",
+              "options": "D"
+            },
+            "location": {
+              "mode": "coords",
+              "latitude": "latitude",
+              "longitude": "longitude"
+            },
+            "config": {
+              "style": {
+                "size": {
+                  "fixed": 2
+                },
+                "color": {
+                  "fixed": "red"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "id": 7
+    },
+    {
+      "type": "table",
+      "title": "Prüffälle",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT a.ref_ts AS \"Zeit\", f.callsign AS \"Rufzeichen\", p.kind || ' ' || p.name AS \"Verfahren\",\n  a.confidence AS \"Sicherheit\", round(a.max_dev_m) AS \"max. Abw. m\",\n  round(a.outside_s) AS \"außerhalb s\",\n  concat_ws(', ', CASE WHEN a.deviation THEN 'Abweichung' END,\n    CASE WHEN a.approach THEN 'Annäherung' END) AS \"Gründe\",\n  'Flugspur' AS \"Flugspur\", a.flight_id,\n  (extract(epoch FROM f.first_ts) * 1000)::bigint AS t_from,\n  (extract(epoch FROM f.last_ts) * 1000)::bigint AS t_to\nFROM flight_assessments a\nJOIN flights f ON f.id = a.flight_id\nJOIN procedures p ON p.id = a.procedure_id\nWHERE \n  $__timeFilter(a.ref_ts)\n  AND p.name IN ($procedure)\n  AND (a.confidence = 'high'\n       OR (a.confidence = 'medium' AND '$confidence' <> 'nur hoch')\n       OR '$confidence' = 'alle')\n  AND (a.review OR '$only_review' = 'nein') AND a.review\nORDER BY a.ref_ts DESC LIMIT 200"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "flight_id"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "t_from"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "t_to"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Flugspur"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Flugspur",
+                    "url": "/d/flightdb-flugspur/flugspur?var-flight_id=${__data.fields.flight_id}&from=${__data.fields.t_from}&to=${__data.fields.t_to}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {},
+      "description": "Eine Abweichung ist kein Verstoß: Radarführung und Freigaben sind aus ADS-B nicht erkennbar.",
+      "id": 8
+    }
+  ]
+}

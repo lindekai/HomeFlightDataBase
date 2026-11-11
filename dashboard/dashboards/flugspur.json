@@ -51,6 +51,28 @@
           "format": "table",
           "rawQuery": true,
           "rawSql": "SELECT ST_Y(d.geom) AS latitude, ST_X(d.geom) AS longitude,\n  to_timestamp(ST_M(d.geom)) AS time\nFROM flights f, LATERAL ST_DumpPoints(f.track) d\nWHERE f.id = nullif(${flight_id:sqlstring}, '')::bigint ORDER BY d.path"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ST_Y(d.geom) AS latitude, ST_X(d.geom) AS longitude\nFROM procedures p,\n  LATERAL ST_DumpPoints(ST_Segmentize(p.geom::geography, 200)::geometry) d\nWHERE p.id = (SELECT procedure_id FROM flight_assessments WHERE flight_id = nullif(${flight_id:sqlstring}, '')::bigint)"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ST_Y(d.geom) AS latitude, ST_X(d.geom) AS longitude\nFROM procedures p,\n  LATERAL ST_DumpPoints(ST_Segmentize(ST_ExteriorRing(\n    ST_Buffer(p.geom::geography, coalesce((SELECT (params->>'corridor_m')::float8 FROM analysis_runs\n    WHERE status = 'ok' ORDER BY id DESC LIMIT 1), 1852))::geometry)::geography, 200)::geometry) d\nWHERE p.id = (SELECT procedure_id FROM flight_assessments WHERE flight_id = nullif(${flight_id:sqlstring}, '')::bigint)"
         }
       ],
       "fieldConfig": {
@@ -74,7 +96,57 @@
         "layers": [
           {
             "type": "markers",
+            "name": "Korridor",
+            "filterData": {
+              "id": "byRefId",
+              "options": "C"
+            },
+            "location": {
+              "mode": "coords",
+              "latitude": "latitude",
+              "longitude": "longitude"
+            },
+            "config": {
+              "style": {
+                "size": {
+                  "fixed": 1
+                },
+                "color": {
+                  "fixed": "purple"
+                }
+              }
+            }
+          },
+          {
+            "type": "markers",
+            "name": "Ideallinie",
+            "filterData": {
+              "id": "byRefId",
+              "options": "B"
+            },
+            "location": {
+              "mode": "coords",
+              "latitude": "latitude",
+              "longitude": "longitude"
+            },
+            "config": {
+              "style": {
+                "size": {
+                  "fixed": 2
+                },
+                "color": {
+                  "fixed": "dark-blue"
+                }
+              }
+            }
+          },
+          {
+            "type": "markers",
             "name": "Spur",
+            "filterData": {
+              "id": "byRefId",
+              "options": "A"
+            },
             "location": {
               "mode": "coords",
               "latitude": "latitude",
@@ -160,6 +232,39 @@
       },
       "options": {},
       "id": 3
+    },
+    {
+      "type": "table",
+      "title": "Bewertung (Flugroutenvergleich)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT a.role AS \"Rolle\", a.direction AS \"Betriebsrichtung\", a.flight_sector AS \"Sektor\",\n  p.kind || ' ' || p.name AS \"Verfahren\", a.confidence AS \"Sicherheit\",\n  round(a.max_dev_m) AS \"max. Abw. m\", round(a.outside_s) AS \"außerhalb s\",\n  a.deviation AS \"Abweichung\", a.approach AS \"Annäherung\", a.review AS \"Prüffall\",\n  array_to_string(a.review_reasons, ', ') AS \"erfüllt\", a.basis AS \"Begründung\"\nFROM flight_assessments a LEFT JOIN procedures p ON p.id = a.procedure_id\nWHERE a.flight_id = nullif(${flight_id:sqlstring}, '')::bigint"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "id": 4
     }
   ]
 }

@@ -9,6 +9,9 @@ VARIABLES = [
     (r"\(\$category\)", "('arrival', 'departure', 'overflight', 'unknown')"),
     (r"'\$relevant'", "'alle'"),
     (r"'\$bucket'", "'day'"),
+    (r"\(\$procedure\)", "('WNORD1W', 'ONORD1W')"),
+    (r"'\$confidence'", "'alle'"),
+    (r"'\$only_review'", "'nein'"),
 ]
 MACROS = [
     (r"\$__timeFilter\(([^)]+)\)", r"\1 BETWEEN '2026-01-01T00:00:00Z' AND '2027-01-01T00:00:00Z'"),

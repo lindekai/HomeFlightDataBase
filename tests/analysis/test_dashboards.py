@@ -15,7 +15,7 @@ def test_generated_files_are_current():
 
 def test_dashboards_have_unique_uids_and_panel_ids():
     dashboards = build_dashboards.build().values()
-    assert len({d["uid"] for d in dashboards}) == 3
+    assert len({d["uid"] for d in dashboards}) == 4
     for d in dashboards:
         ids = [p["id"] for p in d["panels"]]
         assert len(ids) == len(set(ids))

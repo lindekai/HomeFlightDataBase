@@ -459,53 +459,255 @@ FROM analysis_runs ORDER BY id DESC LIMIT 20""")
     )
 
 
+# --- Dashboard „Flugrouten“ -------------------------------------------------------------
+
+# Bewertungen mit zugeordnetem Verfahren (Alias a, p) nach den Variablen des Dashboards.
+ROUTE_FILTER = """
+  $__timeFilter(a.ref_ts)
+  AND p.name IN ($procedure)
+  AND (a.confidence = 'high'
+       OR (a.confidence = 'medium' AND '$confidence' <> 'nur hoch')
+       OR '$confidence' = 'alle')
+  AND (a.review OR '$only_review' = 'nein')"""
+
+# Halbe Korridorbreite des letzten erfolgreichen Laufs (Standard 1852 m).
+CORRIDOR_M = """coalesce((SELECT (params->>'corridor_m')::float8 FROM analysis_runs
+    WHERE status = 'ok' ORDER BY id DESC LIMIT 1), 1852)"""
+
+DIRECTION_COLORS = {
+    "west": {"color": "blue", "index": 0, "text": "West"},
+    "east": {"color": "orange", "index": 1, "text": "Ost"},
+    "unknown": {"color": "#808080", "index": 2, "text": "unbekannt"},
+}
+
+
+def markers(name: str, ref: str, color: str, size: int = 2) -> dict:
+    return {
+        "type": "markers",
+        "name": name,
+        "filterData": {"id": "byRefId", "options": ref},
+        "location": {"mode": "coords", "latitude": "latitude", "longitude": "longitude"},
+        "config": {"style": {"size": {"fixed": size}, "color": {"fixed": color}}},
+    }
+
+
+def geomap(title: str, grid, targets: list[dict], layers: list[dict], padding: int = 5) -> dict:
+    return panel(
+        "geomap",
+        title,
+        grid,
+        targets,
+        options={
+            "view": {"id": "fit", "allLayers": True, "padding": padding},
+            "controls": {"showZoom": True, "mouseWheelZoom": True},
+            "basemap": {"type": "default", "name": "Karte"},
+            "layers": layers,
+        },
+    )
+
+
+def _route_count(condition: str) -> str:
+    return f"""
+SELECT count(*) AS n
+FROM flight_assessments a JOIN procedures p ON p.id = a.procedure_id
+WHERE {ROUTE_FILTER}
+  AND {condition}"""
+
+
+def flugrouten() -> dict:
+    rated = """
+SELECT 100.0 * count(*) FILTER (WHERE a.confidence IN ('high', 'medium'))
+  / nullif(count(*), 0) AS "%"
+FROM flight_assessments a WHERE $__timeFilter(a.ref_ts)"""
+    directions = """
+SELECT window_start AS time, direction AS "Betriebsrichtung"
+FROM operating_directions WHERE $__timeFilter(window_start) ORDER BY 1"""
+    per_procedure = f"""
+SELECT p.kind || ' ' || p.name AS "Verfahren", count(*) AS "Flüge",
+  round(100.0 * count(*) FILTER (WHERE a.deviation) / count(*)) AS "Abw. %",
+  round(percentile_cont(0.5) WITHIN GROUP (ORDER BY a.max_dev_m)) AS "Median m",
+  round(percentile_cont(0.95) WITHIN GROUP (ORDER BY a.max_dev_m)) AS "95 % m"
+FROM flight_assessments a JOIN procedures p ON p.id = a.procedure_id
+WHERE {ROUTE_FILTER}
+GROUP BY p.kind, p.name ORDER BY count(*) DESC"""
+    valid = """p.superseded_at IS NULL AND p.name IN ($procedure)
+  AND p.valid_from <= ($__timeTo())::timestamptz::date
+  AND (p.valid_to IS NULL OR p.valid_to > ($__timeFrom())::timestamptz::date)"""
+    ideal = f"""
+SELECT p.name AS procedure, ST_Y(d.geom) AS latitude, ST_X(d.geom) AS longitude
+FROM procedures p,
+  LATERAL ST_DumpPoints(ST_Segmentize(p.geom::geography, 200)::geometry) d
+WHERE {valid}"""
+    corridor = f"""
+SELECT p.name AS procedure, ST_Y(d.geom) AS latitude, ST_X(d.geom) AS longitude
+FROM procedures p,
+  LATERAL ST_DumpPoints(ST_Segmentize(ST_ExteriorRing(
+    ST_Buffer(p.geom::geography, {CORRIDOR_M})::geometry)::geography, 200)::geometry) d
+WHERE {valid}"""
+
+    def tracks(review: bool) -> str:
+        return f"""
+WITH sel AS (
+  SELECT a.flight_id FROM flight_assessments a JOIN procedures p ON p.id = a.procedure_id
+  WHERE {ROUTE_FILTER} AND a.review = {str(review).lower()}
+  ORDER BY a.ref_ts DESC LIMIT 100
+)
+SELECT f.id AS flight_id, ST_Y(d.geom) AS latitude, ST_X(d.geom) AS longitude
+FROM flights f JOIN sel ON sel.flight_id = f.id, LATERAL ST_DumpPoints(f.track) d
+WHERE d.path[1] % 5 = 1"""
+
+    reviews = f"""
+SELECT a.ref_ts AS "Zeit", f.callsign AS "Rufzeichen", p.kind || ' ' || p.name AS "Verfahren",
+  a.confidence AS "Sicherheit", round(a.max_dev_m) AS "max. Abw. m",
+  round(a.outside_s) AS "außerhalb s",
+  concat_ws(', ', CASE WHEN a.deviation THEN 'Abweichung' END,
+    CASE WHEN a.approach THEN 'Annäherung' END) AS "Gründe",
+  'Flugspur' AS "Flugspur", a.flight_id,
+  (extract(epoch FROM f.first_ts) * 1000)::bigint AS t_from,
+  (extract(epoch FROM f.last_ts) * 1000)::bigint AS t_to
+FROM flight_assessments a
+JOIN flights f ON f.id = a.flight_id
+JOIN procedures p ON p.id = a.procedure_id
+WHERE {ROUTE_FILTER} AND a.review
+ORDER BY a.ref_ts DESC LIMIT 200"""
+
+    track_link = {
+        "title": "Flugspur",
+        "url": "/d/flightdb-flugspur/flugspur?var-flight_id=${__data.fields.flight_id}"
+        "&from=${__data.fields.t_from}&to=${__data.fields.t_to}",
+    }
+    hidden = [
+        {
+            "matcher": {"id": "byName", "options": n},
+            "properties": [{"id": "custom.hidden", "value": True}],
+        }
+        for n in ("flight_id", "t_from", "t_to")
+    ]
+    panels = [
+        stat("Bewertbar (Sicherheit ≥ mittel)", rated, (0, 0, 6, 4), unit="percent"),
+        stat("Abweichungen (C)", _route_count("a.deviation"), (6, 0, 6, 4)),
+        stat("Annäherungen (B)", _route_count("a.approach"), (12, 0, 6, 4)),
+        stat("Prüffälle (E)", _route_count("a.review"), (18, 0, 6, 4)),
+        panel(
+            "state-timeline",
+            "Betriebsrichtung",
+            (0, 4, 24, 5),
+            [target(directions)],
+            fieldConfig={
+                "defaults": {
+                    "custom": {"insertNulls": 1800000},
+                    "mappings": [{"type": "value", "options": DIRECTION_COLORS}],
+                },
+                "overrides": [],
+            },
+            options={"mergeValues": True, "showValue": "never"},
+        ),
+        panel("table", "Je Verfahren", (0, 9, 12, 12), [target(per_procedure)]),
+        geomap(
+            "Ideallinien, Korridor, Spuren",
+            (12, 9, 12, 12),
+            [
+                target(ideal, ref="A"),
+                target(corridor, ref="B"),
+                target(tracks(False), ref="C"),
+                target(tracks(True), ref="D"),
+            ],
+            [
+                markers("Korridor", "B", "purple", 1),
+                markers("Ideallinie", "A", "blue", 2),
+                markers("Spuren", "C", "green", 1),
+                markers("Prüffälle", "D", "red", 2),
+            ],
+        ),
+        panel(
+            "table",
+            "Prüffälle",
+            (0, 21, 24, 9),
+            [target(reviews)],
+            description="Eine Abweichung ist kein Verstoß: Radarführung und Freigaben sind aus"
+            " ADS-B nicht erkennbar.",
+            fieldConfig={
+                "defaults": {},
+                "overrides": hidden
+                + [
+                    {
+                        "matcher": {"id": "byName", "options": "Flugspur"},
+                        "properties": [{"id": "links", "value": [track_link]}],
+                    }
+                ],
+            },
+        ),
+    ]
+    variables = [
+        query_var(
+            "procedure",
+            "Verfahren",
+            "SELECT DISTINCT name FROM procedures WHERE superseded_at IS NULL ORDER BY name",
+        ),
+        custom_var("confidence", "Sicherheit", ["ab mittel", "nur hoch", "alle"], "ab mittel"),
+        custom_var("only_review", "Nur Prüffälle", ["nein", "ja"], "nein"),
+    ]
+    return dashboard("flightdb-flugrouten", "Flugrouten", panels, variables)
+
+
 # --- Dashboard „Flugspur“ ---------------------------------------------------------------
+
+FLIGHT = "nullif(${flight_id:sqlstring}, '')::bigint"
 
 
 def flugspur() -> dict:
     # Flug-ID aus der Textbox nur als SQL-Zeichenkette einsetzen und in bigint wandeln:
     # leere Eingabe ergibt keine Zeilen, beliebiger Text einen Typfehler statt SQL.
+    assigned = f"p.id = (SELECT procedure_id FROM flight_assessments WHERE flight_id = {FLIGHT})"
     panels = [
-        panel(
-            "geomap",
+        geomap(
             "Spur",
             (0, 0, 14, 14),
             [
-                target("""
+                target(
+                    f"""
 SELECT ST_Y(d.geom) AS latitude, ST_X(d.geom) AS longitude,
   to_timestamp(ST_M(d.geom)) AS time
 FROM flights f, LATERAL ST_DumpPoints(f.track) d
-WHERE f.id = nullif(${flight_id:sqlstring}, '')::bigint ORDER BY d.path""")
+WHERE f.id = {FLIGHT} ORDER BY d.path""",
+                    ref="A",
+                ),
+                target(
+                    f"""
+SELECT ST_Y(d.geom) AS latitude, ST_X(d.geom) AS longitude
+FROM procedures p,
+  LATERAL ST_DumpPoints(ST_Segmentize(p.geom::geography, 200)::geometry) d
+WHERE {assigned}""",
+                    ref="B",
+                ),
+                target(
+                    f"""
+SELECT ST_Y(d.geom) AS latitude, ST_X(d.geom) AS longitude
+FROM procedures p,
+  LATERAL ST_DumpPoints(ST_Segmentize(ST_ExteriorRing(
+    ST_Buffer(p.geom::geography, {CORRIDOR_M})::geometry)::geography, 200)::geometry) d
+WHERE {assigned}""",
+                    ref="C",
+                ),
             ],
-            options={
-                "view": {"id": "fit", "allLayers": True, "padding": 10},
-                "controls": {"showZoom": True, "mouseWheelZoom": True},
-                "basemap": {"type": "default", "name": "Karte"},
-                "layers": [
-                    {
-                        "type": "markers",
-                        "name": "Spur",
-                        "location": {
-                            "mode": "coords",
-                            "latitude": "latitude",
-                            "longitude": "longitude",
-                        },
-                        "config": {"style": {"size": {"fixed": 3}, "color": {"fixed": "blue"}}},
-                    }
-                ],
-            },
+            [
+                markers("Korridor", "C", "purple", 1),
+                markers("Ideallinie", "B", "dark-blue", 2),
+                markers("Spur", "A", "blue", 3),
+            ],
+            padding=10,
         ),
         panel(
             "table",
             "Überflüge dieses Flugs",
             (14, 0, 10, 14),
             [
-                target("""
+                target(f"""
 SELECT g.name AS "Zone", e.entry_ts AS "Eintritt", e.exit_ts AS "Austritt",
   e.min_alt_ft AS "Höhe ft", round(e.min_dist_m) AS "Abstand m", e.heading_sector AS "Richtung",
   e.category AS "Kategorie", e.category_basis::text AS "Begründung"
 FROM overflight_events e JOIN geofences g ON g.id = e.geofence_id
-WHERE e.flight_id = nullif(${flight_id:sqlstring}, '')::bigint ORDER BY e.entry_ts""")
+WHERE e.flight_id = {FLIGHT} ORDER BY e.entry_ts""")
             ],
         ),
         panel(
@@ -514,13 +716,28 @@ WHERE e.flight_id = nullif(${flight_id:sqlstring}, '')::bigint ORDER BY e.entry_
             (0, 14, 24, 9),
             [
                 target(
-                    """
+                    f"""
 SELECT p.ts AS time, p.alt_baro_ft AS "Höhe ft", p.gs_kt AS "Geschwindigkeit kt"
 FROM positions p JOIN flights f ON p.icao24 = f.icao24
   AND p.ts BETWEEN f.first_ts AND f.last_ts
-WHERE f.id = nullif(${flight_id:sqlstring}, '')::bigint ORDER BY 1""",
+WHERE f.id = {FLIGHT} ORDER BY 1""",
                     "time_series",
                 )
+            ],
+        ),
+        panel(
+            "table",
+            "Bewertung (Flugroutenvergleich)",
+            (0, 23, 24, 6),
+            [
+                target(f"""
+SELECT a.role AS "Rolle", a.direction AS "Betriebsrichtung", a.flight_sector AS "Sektor",
+  p.kind || ' ' || p.name AS "Verfahren", a.confidence AS "Sicherheit",
+  round(a.max_dev_m) AS "max. Abw. m", round(a.outside_s) AS "außerhalb s",
+  a.deviation AS "Abweichung", a.approach AS "Annäherung", a.review AS "Prüffall",
+  array_to_string(a.review_reasons, ', ') AS "erfüllt", a.basis AS "Begründung"
+FROM flight_assessments a LEFT JOIN procedures p ON p.id = a.procedure_id
+WHERE a.flight_id = {FLIGHT}""")
             ],
         ),
     ]
@@ -533,6 +750,7 @@ def build() -> dict[str, dict]:
         "ueberfluege.json": ueberfluege(),
         "datenqualitaet.json": datenqualitaet(),
         "flugspur.json": flugspur(),
+        "flugrouten.json": flugrouten(),
     }
 
 

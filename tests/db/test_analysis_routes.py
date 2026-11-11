@@ -285,3 +285,28 @@ def test_invalid_file_keeps_previous_version(db_dsns, cfg, tmp_path, monkeypatch
     assert q(db_dsns["reader"], "SELECT count(*) FROM procedures WHERE superseded_at IS NULL") == [
         (8,)
     ]
+
+
+def test_dashboard_queries_show_review(db_dsns, cfg):
+    import build_dashboards
+    from dashboard_sql import substitute
+
+    scenario(db_dsns["admin"])
+    run_once(cfg)
+    panels = {p["title"]: p for p in build_dashboards.flugrouten()["panels"]}
+    with psycopg.connect(db_dsns["reader"]) as c:
+
+        def rows(title, ref=0):
+            return c.execute(substitute(panels[title]["targets"][ref]["rawSql"])).fetchall()
+
+        assert rows("Prüffälle (E)") == [(1,)]
+        assert rows("Bewertbar (Sicherheit ≥ mittel)") == [(100,)]
+        (review,) = rows("Prüffälle")
+        assert review[1:4] == ("TST104", "SID WNORD1W", "high")
+        assert review[6] == "Abweichung, Annäherung"
+        assert rows("Je Verfahren")[0][:3] == ("SID WNORD1W", 3, 33)
+        assert len(rows("Ideallinien, Korridor, Spuren", 1)) > 100  # Korridorrand
+        spur = {p["title"]: p for p in build_dashboards.flugspur()["panels"]}["Spur"]
+        flight_id = str(review[8])
+        ideal = c.execute(substitute(spur["targets"][1]["rawSql"], flight_id=flight_id))
+        assert len(ideal.fetchall()) > 100
