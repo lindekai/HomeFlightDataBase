@@ -83,11 +83,15 @@ services:
       ANALYSIS_DB_DSN: postgresql://flightdb_analysis:analysis@postgis:5432/flightdb
       ANALYSIS_INTERVAL_S: "5"
       ANALYSIS_SETTLE_S: "5"
-      ANALYSIS_BER_LAT: "49.0"
-      ANALYSIS_BER_LON: "8.0"
+      # Erfundener Flughafen aus tests/fixtures/procedures.test.yaml
+      ANALYSIS_BER_LAT: "50.0"
+      ANALYSIS_BER_LON: "10.0"
+      ANALYSIS_BER_RADIUS_M: "25000"
       ANALYSIS_ZONES_FILE: /zones/zones.example.geojson
+      ANALYSIS_PROCEDURES_FILE: /zones/procedures.test.yaml
     volumes:
       - ./zones.example.geojson:/zones/zones.example.geojson:ro
+      - ../fixtures/procedures.test.yaml:/zones/procedures.test.yaml:ro
 
   grafana:
     image: grafana/grafana:13.2.6@sha256:b21409d7951ddcfd63a4b49083e4ef2cc35bc1437d071813bf82bfb238b00bca
