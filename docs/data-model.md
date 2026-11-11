@@ -60,6 +60,21 @@ Höhen (Details: [analysis.md](analysis.md#überflugereignisse)).
 Herkunft eines Ereignisses: `overflight_events.analysis_run_id` → Parameter und Version;
 `flight_id` → `flights` → Positionen des Flugzeugs im Zeitraum → `raw_file_id`.
 
+## Flugroutenvergleich (Meilenstein 4)
+
+| Tabelle / View | Bedeutung |
+|---|---|
+| `procedures` | Verfahren (SID/STAR) mit Ideallinie, Startbahn und -kurs, Betriebsrichtung, Sektor, Gültigkeit; Änderungen erzeugen eine neue Fassung (`superseded_at`) |
+| `operating_directions` | Betriebsrichtung je 30-Minuten-Fenster (`west`/`east`/`unknown`) mit Zahl der Stimmen, Anteil der Mehrheit und Begründung |
+| `flight_assessments` | eine Zeile je Flug mit Rolle: Bezugszeitpunkt und -kurs, Stimme, Sektor, zugeordnetes Verfahren, Sicherheitsstufe und Begründung, Abweichung (C), Annäherung (B), Prüffall (E), Datenqualität |
+| `route_stats_daily` | je Tag (Europe/Berlin), Verfahren und Sicherheitsstufe: Flüge, Abweichungen, Annäherungen, Prüffälle, Median und 95-%-Wert von `max_dev_m` |
+
+`flight_assessments` hängt mit `ON DELETE CASCADE` an `flights`; wird ein Flug neu gebildet,
+entsteht auch die Bewertung neu. Abstände in m, Dauern in s; `eval_from`/`eval_to` begrenzen
+den bewerteten Abschnitt. Herkunft einer Bewertung: `run_id` → Parameter und Version in
+`analysis_runs`; `procedure_id` → Fassung des Verfahrens mit `source` und `airac`;
+`ref_geofence_id` → Zonenfassung der Annäherung.
+
 ## Herkunftskette
 
 `positions.raw_file_id` → `raw_files.path` + `sha256` → Datei im Archiv → `.sha256`.

@@ -7,10 +7,17 @@ Grafana läuft im NAS-Stack, nur im LAN (`http://<NAS>:${GRAFANA_LAN_PORT}`), An
 |---|---|
 | Überflüge | Kennzahlen, Zeitverlauf nach Kategorie, Tageszeit × Wochentag, Höhen, Richtungen, tiefste Überflüge, Karte mit Spuren und Zonen |
 | Datenqualität | Empfangsabdeckung, Positionen und Dateien je Stunde, Uhrabweichung, Lücken, Ingest- und Analysestatus, Link zur Live-Karte |
-| Flugspur | Spur, Höhe und Geschwindigkeit, Überflüge eines Flugs (Link aus der Tabelle „Tiefste Überflüge“) |
+| Flugspur | Spur, Höhe und Geschwindigkeit, Überflüge, zugeordnetes Verfahren mit Ideallinie und Korridor, Bewertung (Link aus „Tiefste Überflüge“ und „Prüffälle“) |
+| Flugrouten | Kennzahlen (bewertbar, Abweichungen C, Annäherungen B, Prüffälle E), Betriebsrichtung, Tabelle je Verfahren, Karte mit Ideallinien, Korridor und Spuren, Prüffälle |
 
 Filter „Überflüge: relevante“ zeigt nur Ereignisse unterhalb der Relevanzgrenze der Zone.
 Kategorien sind heuristisch (siehe [analysis.md](analysis.md)).
+
+Im Dashboard „Flugrouten“ wirken die Filter Verfahren, Sicherheit (ab mittel, nur hoch, alle) und
+„Nur Prüffälle“ auf Kennzahlen C, B, E, Tabellen und Karte; „Bewertbar“ bezieht sich immer auf
+alle An- und Abflüge im Zeitraum. Eine Abweichung ist **kein** Verstoß (siehe
+[routes.md](routes.md)). Der Korridor erscheint als Randlinie, weil Grafana aus SQL keine
+Flächen zeichnet.
 
 ## Änderungen
 

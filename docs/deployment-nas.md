@@ -46,6 +46,32 @@ Zonendatei nach [analysis.md](analysis.md#zonendatei) erstellen und als
 `config/local/geofences.geojson` im Repo-Ordner auf dem NAS ablegen (gitignored).
 Ohne Zonendatei bricht jeder Analyse-Lauf mit einer Meldung ab; Erfassung und Ingest laufen weiter.
 
+## 3b. Flugverfahren
+
+Die Tabellen für den Flugroutenvergleich legt `ingest` beim Start an (Migration
+`003_routen.sql`); dafür ist nichts zu tun, auch nicht bei einer bestehenden Datenbank.
+
+Verfahren nach [routes.md](routes.md#übertragen-aus-der-aip) aus der AIP übertragen und auf dem
+Entwicklungsrechner prüfen (Umgebung wie in der README; Referenzpunkt wie `ANALYSIS_BER_LAT`/
+`ANALYSIS_BER_LON` in `nas/.env`):
+
+```bash
+python scripts/check_procedures.py config/local/procedures.yaml \
+  --ber-lat <ANALYSIS_BER_LAT> --ber-lon <ANALYSIS_BER_LON>
+```
+
+Dann die Datei als `config/local/procedures.yaml` in den Repo-Ordner auf dem NAS kopieren
+(gitignored, neben der Zonendatei) und laden:
+
+```bash
+cd <ssd>/docker/flightdb/repo/nas
+sudo docker compose exec analysis python -m analysis procedures
+```
+
+Der Befehl prüft die Datei erneut; bei einem Fehler bleibt die bisherige Fassung aktiv. Ohne
+Verfahrensdatei läuft die Auswertung ohne Routenvergleich weiter. Für Zeiträume vor dem Laden:
+`sudo docker compose exec analysis python -m analysis rebuild --from JJJJ-MM-TT --to JJJJ-MM-TT`.
+
 ## 4. Start
 
 ```bash

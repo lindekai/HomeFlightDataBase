@@ -1,17 +1,21 @@
 # Auswertung: Flüge und Überflüge
 
 Dienst `analysis` auf dem NAS (Rolle `flightdb_analysis`). Er liest `positions` und schreibt
-`flights`, `overflight_events` und `analysis_runs`. Erfassung und Ingest laufen unabhängig davon.
+`flights`, `overflight_events`, `analysis_runs` sowie für den Flugroutenvergleich `procedures`,
+`operating_directions` und `flight_assessments`. Erfassung und Ingest laufen unabhängig davon.
 
 ## Ablauf eines Laufs
 
-1. Zonendatei abgleichen (`ANALYSIS_ZONES_FILE`): geänderte Zonen erhalten eine neue Fassung.
+1. Zonendatei (`ANALYSIS_ZONES_FILE`) und Verfahrensdatei (`ANALYSIS_PROCEDURES_FILE`) abgleichen:
+   geänderte Zonen und Verfahren erhalten eine neue Fassung.
 2. Zeitfenster: bis zum Ende der eingelesenen Rohdateien abzüglich `ANALYSIS_SETTLE_S`; ab dem
    Ende des letzten erfolgreichen Laufs. Nachgelieferte ältere Dateien verschieben den Beginn nach
    vorn.
 3. Flüge, die bis an das Fenster heranreichen, werden gelöscht und ab ihrem Beginn neu gebildet.
    Dadurch erscheinen Überflüge etwa eine Ingest-Periode nach dem Ereignis.
 4. Flugbildung, Zonendurchquerungen, Kennwerte und Einstufung; alles in einer Transaktion.
+5. Flugroutenvergleich: Rolle, Betriebsrichtung je 30-Minuten-Fenster, Zuordnung zu einem
+   Verfahren und Bewertung (Details: [routes.md](routes.md)).
 
 ## Fehlerbehandlung und Betrieb
 
@@ -22,6 +26,12 @@ Verbindungsabbruch zur Datenbank (`OperationalError`) bricht den Lauf ab.
 Fehlen Zonendatei oder Schema, protokolliert `run` den Fehler bei jedem Intervall und setzt keinen
 Heartbeat. Der Container wird nach rund 3 Intervallen „unhealthy“ und erholt sich selbst, sobald
 die Ursache behoben ist.
+
+Fehlt die Verfahrensdatei, entfällt der Routenvergleich; jeder Lauf protokolliert eine Warnung,
+`health` bleibt grün. Ist sie ungültig, bleibt die bisherige Fassung aktiv und jeder Lauf
+protokolliert den Fehler (Eintrag und Feld, keine Koordinaten). Ein Fehler bei der Bewertung
+eines einzelnen Flugs wird wie bei Flugzeugen als `skipped` gezählt; der Flug behält dann die
+Begründung „noch nicht bewertet“.
 
 Eine registrierte, aber nicht eingelesene Rohdatei (auch Status `failed`) begrenzt das Zeitfenster
 auf ihren Beginn. Solange das so ist, protokolliert jeder Lauf eine Warnung mit Dateipfad, Status,
@@ -62,6 +72,9 @@ Grundlage sind die Positionen in der Zone plus je 120 s davor und danach. Als Ab
 der kleinere Abstand von Anfang und Ende des betrachteten Ausschnitts. Die Begründung steht in
 `category_basis`. Die Einstufung ist **keine** Zuordnung zu einem Flugverfahren; Flüge zu anderen
 Plätzen oder Hubschrauber können als `overflight` oder `unknown` erscheinen.
+
+Die Rolle im Flugroutenvergleich (Abflug/Anflug bezogen auf BER) wird unabhängig davon bestimmt,
+siehe [routes.md](routes.md#rolle).
 
 ## Parameter
 
@@ -133,11 +146,13 @@ Abfrage anpassen. Die Overpass-Server sehen die abgefragten Namen.
 
 ```bash
 sudo docker compose exec analysis python -m analysis zones            # Zonen laden
+sudo docker compose exec analysis python -m analysis procedures       # Verfahren laden
 sudo docker compose exec analysis python -m analysis once             # ein Lauf
 sudo docker compose exec analysis python -m analysis rebuild --from 2026-11-01 --to 2026-12-01
+python scripts/check_procedures.py config/local/procedures.yaml       # Verfahrensdatei prüfen
 ```
 
-Zonenänderungen wirken nur auf neue Läufe; für zurückliegende Zeiträume `rebuild` ausführen.
+Zonen- und Verfahrensänderungen wirken nur auf neue Läufe; für zurückliegende Zeiträume `rebuild` ausführen.
 Nach einem `ingest rebuild` ebenfalls `analysis rebuild` für denselben Zeitraum ausführen: Neu
 registrierte Rohdateien behalten ihr `fetched_at`, die Erkennung von Nachlieferungen greift dann
 nicht.
@@ -160,6 +175,7 @@ nicht.
   Dateizeiträume. Der Filter im Kennzahlen-Panel schneidet Tage in UTC, die übrigen Panels in
   Europe/Berlin; am Rand des Zeitraums kann ein Tag fehlen oder hinzukommen.
 - **Einstufung:** heuristisch, siehe [ADR 0006](decisions/0006-heuristische-einstufung.md).
+- **Flugroutenvergleich:** siehe [routes.md](routes.md#grenzen).
 
 ## Offene Punkte
 

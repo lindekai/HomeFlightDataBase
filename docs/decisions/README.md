@@ -10,3 +10,4 @@ Jede wesentliche technische Entscheidung wird als kurze, nummerierte Datei dokum
 | [0004](0004-eigene-postgis-instanz.md) | Eigene PostGIS-Instanz, getrennt von n8n | angenommen |
 | [0005](0005-eigener-analyse-dienst.md) | Eigener Analyse-Dienst | angenommen |
 | [0006](0006-heuristische-einstufung.md) | Heuristische Einstufung Anflug/Abflug | angenommen |
+| [0007](0007-zuordnung-zu-flugverfahren.md) | Zuordnung zu Flugverfahren in Stufen mit Sicherheitsstufe | angenommen |
