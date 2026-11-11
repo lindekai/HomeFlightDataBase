@@ -96,8 +96,8 @@ def _aircraft(
     points: list[Point],
     zones: dict[int, int],
     ctx: routes.RouteContext | None,
-) -> tuple[int, int, list[tuple[datetime, datetime]]]:
-    n_flights = n_events = 0
+) -> tuple[int, int, int, list[tuple[datetime, datetime]]]:
+    n_flights = n_events = skipped = 0
     spans = []
     for seg in segment(icao, points, gap_s=cfg.flight_gap_s, max_speed_kt=cfg.max_speed_kt):
         flight_id = db.insert_flight(conn, run_id, seg)
@@ -109,8 +109,20 @@ def _aircraft(
             db.insert_event(conn, run_id, flight_id, event)
             n_events += 1
         if ctx is not None:
-            routes.record_role(conn, run_id, flight_id, seg.points, ctx, cfg)
-    return n_flights, n_events, spans
+            # Eigene Transaktion: ein Fehler im Routenvergleich verwirft nicht Flug und Überflüge.
+            try:
+                with conn.transaction():
+                    routes.record_role(conn, run_id, flight_id, seg.points, ctx, cfg)
+            except psycopg.OperationalError:
+                raise
+            except Exception as e:
+                skipped += 1
+                log.warning(
+                    "Rolle übersprungen",
+                    extra={"flight_id": flight_id, "error": str(e)},
+                    exc_info=True,
+                )
+    return n_flights, n_events, skipped, spans
 
 
 def _process(
@@ -139,7 +151,9 @@ def _process(
     for icao, points in db.aircraft_points(conn, start, end, ranges):
         try:
             with conn.transaction():
-                n_flights, n_events, new = _aircraft(conn, cfg, run_id, icao, points, zones, ctx)
+                n_flights, n_events, n_skipped, new = _aircraft(
+                    conn, cfg, run_id, icao, points, zones, ctx
+                )
         except psycopg.OperationalError:
             raise
         except Exception as e:
@@ -150,9 +164,20 @@ def _process(
             continue
         counts.flights += n_flights
         counts.events += n_events
+        counts.skipped += n_skipped
         spans += new
     if ctx is not None:
-        routes.run_step(conn, cfg, run_id, ctx, spans, counts)
+        try:
+            with conn.transaction():
+                routes.run_step(conn, cfg, run_id, ctx, spans, counts)
+        except psycopg.OperationalError:
+            raise
+        except Exception as e:
+            log.warning(
+                "Fehler im Routenvergleich – Routenvergleich übersprungen",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
     return counts
 
 

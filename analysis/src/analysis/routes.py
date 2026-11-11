@@ -270,12 +270,14 @@ def assess(
 
 
 def pending(conn: psycopg.Connection, run_id: int, changed: list[datetime]) -> list[int]:
-    """Neue Flüge dieses Laufs und Flüge in Fenstern mit geänderter Betriebsrichtung."""
+    """Neue Flüge dieses Laufs, Flüge in Fenstern mit geänderter Betriebsrichtung und Flüge,
+    deren Bewertung noch fehlt (``assess`` setzt ``direction`` immer)."""
     return [
         r[0]
         for r in conn.execute(
             f"SELECT a.flight_id FROM flight_assessments a"
-            f" WHERE a.run_id = %s OR {_WINDOW_SQL} = ANY(%s) ORDER BY a.flight_id",
+            f" WHERE a.run_id = %s OR {_WINDOW_SQL} = ANY(%s) OR a.direction IS NULL"
+            f" ORDER BY a.flight_id",
             (run_id, changed),
         )
     ]

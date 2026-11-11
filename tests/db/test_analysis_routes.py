@@ -287,6 +287,86 @@ def test_invalid_file_keeps_previous_version(db_dsns, cfg, tmp_path, monkeypatch
     ]
 
 
+def icao_of(conn, flight_id):
+    return conn.execute("SELECT icao24 FROM flights WHERE id = %s", (flight_id,)).fetchone()[0]
+
+
+def test_failing_role_keeps_flights_and_events(db_dsns, cfg, monkeypatch):
+    from analysis import routes
+
+    original = routes.record_role
+
+    def record_role(conn, run_id, flight_id, points, ctx, c):
+        if icao_of(conn, flight_id) == "ff0104":
+            raise ValueError("Rolle kaputt")
+        return original(conn, run_id, flight_id, points, ctx, c)
+
+    monkeypatch.setattr(routes, "record_role", record_role)
+    scenario(db_dsns["admin"])
+
+    result = run_once(cfg)
+
+    assert (result.flights, result.assessments, result.skipped) == (5, 4, 1)
+    assert q(
+        db_dsns["reader"],
+        "SELECT count(*) FROM overflight_events e JOIN flights f ON f.id = e.flight_id"
+        " WHERE f.icao24 = 'ff0104'",
+    ) == [(1,)]
+    assert q(
+        db_dsns["reader"],
+        "SELECT count(*) FROM flight_assessments a JOIN flights f ON f.id = a.flight_id"
+        " WHERE f.icao24 = 'ff0104'",
+    ) == [(0,)]
+
+
+def test_failing_route_step_keeps_run(db_dsns, cfg, monkeypatch, caplog):
+    from analysis import routes
+
+    def update_directions(*args):
+        raise ValueError("Richtung kaputt")
+
+    monkeypatch.setattr(routes, "update_directions", update_directions)
+    scenario(db_dsns["admin"])
+
+    with caplog.at_level("WARNING", logger="analysis"):
+        result = run_once(cfg)
+
+    assert (result.flights, result.events, result.assessments) == (5, 1, 0)
+    assert q(db_dsns["reader"], "SELECT status FROM analysis_runs") == [("ok",)]
+    assert q(db_dsns["reader"], "SELECT count(*) FROM overflight_events") == [(1,)]
+    assert any("Routenvergleich übersprungen" in r.message for r in caplog.records)
+
+
+def test_failed_assessment_is_retried_next_run(db_dsns, cfg, monkeypatch):
+    from analysis import routes
+
+    original = routes.assess
+    failed = []
+
+    def assess(conn, run_id, flight_id, ctx, c):
+        if not failed and icao_of(conn, flight_id) == "ff0104":
+            failed.append(flight_id)
+            raise ValueError("Bewertung kaputt")
+        return original(conn, run_id, flight_id, ctx, c)
+
+    monkeypatch.setattr(routes, "assess", assess)
+    scenario(db_dsns["admin"])
+    first = run_once(cfg)
+    assert (first.assessments, first.skipped) == (4, 1)
+
+    # Nächster Lauf mit einem neuen Flug in einem späteren Fenster
+    insert_positions(db_dsns["admin"], departure(NORTH, 70, "ff0106"))
+    add_raw_file(db_dsns["admin"], T0 + timedelta(hours=1), T0 + timedelta(minutes=90))
+    second = run_once(cfg)
+
+    assert (second.assessments, second.skipped) == (2, 0)
+    assert q(
+        db_dsns["reader"],
+        "SELECT a.run_id, a.direction, a.confidence FROM flight_assessments a"
+        " JOIN flights f ON f.id = a.flight_id WHERE f.icao24 = 'ff0104'",
+    ) == [(second.run_id, "west", "high")]
+
+
 def test_dashboard_queries_show_review(db_dsns, cfg):
     import build_dashboards
     from dashboard_sql import substitute

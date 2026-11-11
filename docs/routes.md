@@ -140,6 +140,10 @@ höchstens `ANALYSIS_REVIEW_MAX_GAP_S` (30 s); mindestens ein relevanter Überfl
   dann höchstens `medium`.
 - Flüge nahe einer Sektorgrenze können in den Nachbarsektor fallen („passt ungefähr“).
 - `rebuild` verwendet die aktuell nicht abgelösten Fassungen der Verfahren.
+- Fehlte die Verfahrensdatei bei einigen Läufen, erhalten die in dieser Zeit gebildeten Flüge
+  keine Bewertung, und Flüge, die diese Läufe neu gebildet haben, verlieren ihre Bewertung
+  (Löschung kaskadiert); die Betriebsrichtung dieser Fenster bleibt veraltet. Nach der
+  Rückkehr der Datei den Zeitraum mit `analysis rebuild` neu berechnen.
 - Der Wert für `ANALYSIS_ROUTE_MAX_ALT_FT` ist noch aus der AIP bzw. aus Veröffentlichungen zur
   Radarführung abzuleiten; bis dahin wird ohne Höhengrenze verglichen.
 - Die Karte im Dashboard zeigt den Korridor als Randlinie aus Punkten im Abstand von 200 m, weil
