@@ -1,0 +1,17 @@
+# Grafana liest nur über die Rolle flightdb_reader; Werte kommen aus der Container-Umgebung.
+apiVersion: 1
+datasources:
+  - name: flightdb
+    uid: flightdb
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: postgis:5432
+    user: flightdb_reader
+    isDefault: true
+    jsonData:
+      database: ${POSTGRES_DB}
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+    secureJsonData:
+      password: ${DB_READONLY_PASSWORD}

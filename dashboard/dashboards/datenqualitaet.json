@@ -1,0 +1,274 @@
+{
+  "uid": "flightdb-datenqualitaet",
+  "title": "Datenqualität",
+  "tags": [
+    "flightdb"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "editable": true,
+  "time": {
+    "from": "now-2d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "type": "textbox",
+        "name": "tar1090",
+        "label": "tar1090-Adresse (lokal setzen)",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        }
+      }
+    ]
+  },
+  "links": [
+    {
+      "title": "Live-Karte (tar1090)",
+      "type": "link",
+      "url": "${tar1090}",
+      "targetBlank": true
+    }
+  ],
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Empfangsabdeckung je Tag",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT day::timestamp AT TIME ZONE 'Europe/Berlin' AS time, receiver_id AS metric,\n  100 * greatest(recorded_s - gap_s, 0) / nullif(day_s, 0) AS value\nFROM data_coverage_daily\nWHERE day BETWEEN ($__timeFrom())::timestamptz::date AND ($__timeTo())::timestamptz::date\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 1
+    },
+    {
+      "type": "timeseries",
+      "title": "Positionen je Stunde",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT date_trunc('hour', ts) AS time, count(*) AS value\nFROM positions WHERE $__timeFilter(ts)\nGROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "id": 2
+    },
+    {
+      "type": "timeseries",
+      "title": "Dateien je Stunde",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT date_trunc('hour', period_start) AS time, status AS metric, count(*) AS value\nFROM raw_files WHERE $__timeFilter(period_start)\nGROUP BY 1, 2 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "id": 3
+    },
+    {
+      "type": "timeseries",
+      "title": "Uhrabweichung (max. je Datei)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT period_start AS time, clock_offset_max_s AS value\nFROM raw_files WHERE $__timeFilter(period_start) AND clock_offset_max_s IS NOT NULL\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 4
+    },
+    {
+      "type": "table",
+      "title": "Empfangslücken",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT gap_start AS \"Beginn\", gap_end AS \"Ende\",\n  round(extract(epoch FROM gap_end - gap_start)) AS \"Dauer s\", reason AS \"Grund\"\nFROM reception_gaps WHERE $__timeFilter(gap_start)\nORDER BY gap_start DESC LIMIT 200"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "id": 5
+    },
+    {
+      "type": "table",
+      "title": "Ingest-Status",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT * FROM ingest_status"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "id": 6
+    },
+    {
+      "type": "table",
+      "title": "Analyse-Läufe",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 20,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT id, kind AS \"Art\", status, started_at AS \"Beginn\", finished_at AS \"Ende\",\n  window_from AS \"von\", window_to AS \"bis\", n_flights AS \"Flüge\", n_events AS \"Überflüge\",\n  n_skipped AS \"übersprungen\", error AS \"Fehler\"\nFROM analysis_runs ORDER BY id DESC LIMIT 20"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "id": 7
+    }
+  ]
+}

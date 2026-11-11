@@ -10,6 +10,7 @@ Ziel ist eine nachvollziehbare, statistisch belastbare Dokumentation von Überfl
 
 - Meilenstein 1 – Bestandsaufnahme und Architektur: abgeschlossen (offen: Prüfung der vorhandenen Empfangshardware)
 - Meilenstein 2 – Empfang und Speicherung: Software fertig und getestet, Abnahme mit Hardware ausstehend
+- Meilenstein 3 – Geofences und Dashboard: Software fertig und getestet, Abnahme mit Hardware ausstehend
 
 ## Überblick
 
@@ -31,6 +32,8 @@ Details: [docs/architecture.md](docs/architecture.md)
 | [docs/decisions/](docs/decisions/) | Architekturentscheidungen (ADR) |
 | [docs/superpowers/specs/](docs/superpowers/specs/) | Designspezifikationen je Meilenstein |
 | [docs/data-model.md](docs/data-model.md) | Datenmodell und Herkunftskette |
+| [docs/analysis.md](docs/analysis.md) | Auswertung: Flüge, Überflüge, Zonen |
+| [docs/dashboard.md](docs/dashboard.md) | Grafana-Dashboards |
 | [docs/deployment-nas.md](docs/deployment-nas.md) | Installation auf dem NAS |
 | [docs/deployment-receiver.md](docs/deployment-receiver.md) | Installation der Empfangsstation |
 

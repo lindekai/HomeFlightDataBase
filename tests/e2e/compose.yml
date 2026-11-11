@@ -10,6 +10,7 @@ services:
       POSTGRES_PASSWORD: admin
       DB_INGEST_PASSWORD: ingest
       DB_READONLY_PASSWORD: reader
+      DB_ANALYSIS_PASSWORD: analysis
     volumes:
       - ../../database/init:/docker-entrypoint-initdb.d:ro
     ports:
@@ -70,6 +71,40 @@ services:
       FLIGHTDB_ENV: test
     volumes:
       - keys:/keys:ro
+
+  analysis:
+    build:
+      context: ../..
+      dockerfile: analysis/Dockerfile
+    depends_on:
+      ingest:
+        condition: service_started
+    environment:
+      ANALYSIS_DB_DSN: postgresql://flightdb_analysis:analysis@postgis:5432/flightdb
+      ANALYSIS_INTERVAL_S: "5"
+      ANALYSIS_SETTLE_S: "5"
+      ANALYSIS_BER_LAT: "49.0"
+      ANALYSIS_BER_LON: "8.0"
+      ANALYSIS_ZONES_FILE: /zones/zones.example.geojson
+    volumes:
+      - ./zones.example.geojson:/zones/zones.example.geojson:ro
+
+  grafana:
+    image: grafana/grafana:13.2.6@sha256:b21409d7951ddcfd63a4b49083e4ef2cc35bc1437d071813bf82bfb238b00bca
+    depends_on:
+      postgis:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      POSTGRES_DB: flightdb
+      DB_READONLY_PASSWORD: reader
+    volumes:
+      - ../../dashboard/provisioning:/etc/grafana/provisioning:ro
+      - ../../dashboard/dashboards:/etc/grafana/dashboards:ro
+    ports:
+      - "3002:3000"
 
 volumes:
   receiver-data:

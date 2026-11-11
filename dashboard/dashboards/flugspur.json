@@ -1,0 +1,165 @@
+{
+  "uid": "flightdb-flugspur",
+  "title": "Flugspur",
+  "tags": [
+    "flightdb"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "editable": true,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "type": "textbox",
+        "name": "flight_id",
+        "label": "Flug-ID",
+        "query": "0",
+        "current": {
+          "text": "0",
+          "value": "0"
+        }
+      }
+    ]
+  },
+  "links": [],
+  "panels": [
+    {
+      "type": "geomap",
+      "title": "Spur",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ST_Y(d.geom) AS latitude, ST_X(d.geom) AS longitude,\n  to_timestamp(ST_M(d.geom)) AS time\nFROM flights f, LATERAL ST_DumpPoints(f.track) d\nWHERE f.id = nullif(${flight_id:sqlstring}, '')::bigint ORDER BY d.path"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "view": {
+          "id": "fit",
+          "allLayers": true,
+          "padding": 10
+        },
+        "controls": {
+          "showZoom": true,
+          "mouseWheelZoom": true
+        },
+        "basemap": {
+          "type": "default",
+          "name": "Karte"
+        },
+        "layers": [
+          {
+            "type": "markers",
+            "name": "Spur",
+            "location": {
+              "mode": "coords",
+              "latitude": "latitude",
+              "longitude": "longitude"
+            },
+            "config": {
+              "style": {
+                "size": {
+                  "fixed": 3
+                },
+                "color": {
+                  "fixed": "blue"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "id": 1
+    },
+    {
+      "type": "table",
+      "title": "Überflüge dieses Flugs",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 0,
+        "w": 10,
+        "h": 14
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT g.name AS \"Zone\", e.entry_ts AS \"Eintritt\", e.exit_ts AS \"Austritt\",\n  e.min_alt_ft AS \"Höhe ft\", round(e.min_dist_m) AS \"Abstand m\", e.heading_sector AS \"Richtung\",\n  e.category AS \"Kategorie\", e.category_basis::text AS \"Begründung\"\nFROM overflight_events e JOIN geofences g ON g.id = e.geofence_id\nWHERE e.flight_id = nullif(${flight_id:sqlstring}, '')::bigint ORDER BY e.entry_ts"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "id": 2
+    },
+    {
+      "type": "timeseries",
+      "title": "Höhe und Geschwindigkeit",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT p.ts AS time, p.alt_baro_ft AS \"Höhe ft\", p.gs_kt AS \"Geschwindigkeit kt\"\nFROM positions p JOIN flights f ON p.icao24 = f.icao24\n  AND p.ts BETWEEN f.first_ts AND f.last_ts\nWHERE f.id = nullif(${flight_id:sqlstring}, '')::bigint ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "id": 3
+    }
+  ]
+}

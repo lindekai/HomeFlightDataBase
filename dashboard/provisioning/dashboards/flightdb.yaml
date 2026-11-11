@@ -1,0 +1,10 @@
+# Dashboards aus dem Repo. Änderungen in der Oberfläche (z. B. tar1090-Adresse) bleiben in der
+# Grafana-Datenbank, bis sich die Datei im Repo ändert.
+apiVersion: 1
+providers:
+  - name: flightdb
+    folder: flightdb
+    type: file
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/dashboards

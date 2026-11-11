@@ -1,0 +1,27 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-30.0, 45.0] },
+      "properties": {
+        "name": "Beispiel Kreis",
+        "radius_m": 3000,
+        "relevance_max_alt_ft": 10000,
+        "source": "erfunden"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-31.0, 44.0], [-30.9, 44.0], [-30.9, 44.1], [-31.0, 44.1], [-31.0, 44.0]]]
+      },
+      "properties": {
+        "name": "Beispiel Gebiet",
+        "ref_point": [-30.95, 44.05],
+        "source": "erfunden"
+      }
+    }
+  ]
+}

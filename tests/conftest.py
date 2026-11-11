@@ -26,6 +26,7 @@ def db_dsns():
         migrate(c, MIGRATIONS)
         c.execute("ALTER ROLE flightdb_ingest LOGIN PASSWORD 'test'")
         c.execute("ALTER ROLE flightdb_reader LOGIN PASSWORD 'test'")
+        c.execute("ALTER ROLE flightdb_analysis LOGIN PASSWORD 'test'")
 
     def as_role(role):
         return conninfo.make_conninfo(**(params | {"user": role, "password": "test"}))
@@ -34,6 +35,7 @@ def db_dsns():
         "admin": admin_dsn,
         "ingest": as_role("flightdb_ingest"),
         "reader": as_role("flightdb_reader"),
+        "analysis": as_role("flightdb_analysis"),
     }
     with psycopg.connect(admin, autocommit=True) as c:
         c.execute(f'DROP DATABASE "{name}" WITH (FORCE)')

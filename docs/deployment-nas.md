@@ -5,7 +5,7 @@ Bestehende Container (z. B. n8n) werden nicht verändert.
 
 ## 1. Verzeichnisse
 
-Auf dem SSD-Volume: `docker/flightdb/postgres`, `docker/flightdb/ingest-work`, `docker/flightdb/ssh`.
+Auf dem SSD-Volume: `docker/flightdb/postgres`, `docker/flightdb/ingest-work`, `docker/flightdb/ssh`, `docker/flightdb/grafana`.
 Auf dem HDD-Volume: `flightdb/raw`, `flightdb/backups`.
 
 ```bash
@@ -14,7 +14,11 @@ sudo chown 1000:1000 <ssd>/docker/flightdb/{ingest-work,ssh} <hdd>/flightdb/raw
 sudo chown 999:999 <hdd>/flightdb/backups
 ```
 
-(UID 999 = postgres im PostGIS-Image, UID 1000 = ingest.)
+```bash
+sudo mkdir -p <ssd>/docker/flightdb/grafana && sudo chown 472:472 <ssd>/docker/flightdb/grafana
+```
+
+(UID 999 = postgres im PostGIS-Image, UID 1000 = ingest, UID 472 = grafana.)
 
 ## 2. Repository und Konfiguration
 
@@ -36,6 +40,12 @@ sudo chown 1000:1000 ingest_read* ingest_ack* && sudo chmod 600 ingest_read inge
 
 Die beiden `.pub`-Dateien werden auf dem Pi eingetragen (siehe [deployment-receiver.md](deployment-receiver.md)).
 
+## 3a. Zonen
+
+Zonendatei nach [analysis.md](analysis.md#zonendatei) erstellen und als
+`config/local/geofences.geojson` im Repo-Ordner auf dem NAS ablegen (gitignored).
+Ohne Zonendatei bricht jeder Analyse-Lauf mit einer Meldung ab; Erfassung und Ingest laufen weiter.
+
 ## 4. Start
 
 ```bash
@@ -47,15 +57,27 @@ sudo docker compose logs -f ingest
 
 Alternativ im Container Manager unter *Projekt → Erstellen* mit diesem Ordner.
 
-## 5. Zugriff für n8n und Grafana
+## 5. Grafana und n8n
 
-Verbindung zu `NAS-IP:${DB_LAN_PORT}`, Datenbank `flightdb`, Benutzer `flightdb_reader`.
-Der Port ist nur im LAN freizugeben (DSM-Firewall), nicht ins Internet weiterleiten.
+Grafana: `http://<NAS>:${GRAFANA_LAN_PORT}` (siehe [dashboard.md](dashboard.md)).
+n8n: Verbindung zu `NAS-IP:${DB_LAN_PORT}`, Datenbank `flightdb`, Benutzer `flightdb_reader`.
+Beide Ports nur im LAN freigeben (DSM-Firewall), nicht ins Internet weiterleiten.
+
+**Bestehende Datenbank** (vor Meilenstein 3 angelegt): Die Rolle `flightdb_analysis` legt die
+Migration ohne Passwort an. Einmalig:
+
+```bash
+sudo docker compose exec postgis psql -U flightdb_admin -d flightdb \
+  -c "ALTER ROLE flightdb_analysis LOGIN PASSWORD '<DB_ANALYSIS_PASSWORD>'"
+```
 
 ## 6. Prüfen
 
 ```bash
 sudo docker compose exec postgis psql -U flightdb_admin -d flightdb -c "SELECT * FROM ingest_status"
+sudo docker compose logs analysis
+sudo docker compose exec postgis psql -U flightdb_admin -d flightdb \
+  -c "SELECT id, kind, status, n_events, error FROM analysis_runs ORDER BY id DESC LIMIT 5"
 ```
 
 ## 7. Wiederherstellung

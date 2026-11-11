@@ -17,6 +17,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       DB_INGEST_PASSWORD: ${DB_INGEST_PASSWORD}
       DB_READONLY_PASSWORD: ${DB_READONLY_PASSWORD}
+      DB_ANALYSIS_PASSWORD: ${DB_ANALYSIS_PASSWORD}
       TZ: UTC
     volumes:
       - ${DB_DATA_DIR}:/var/lib/postgresql/data
@@ -52,6 +53,65 @@ services:
       - ${RAW_ARCHIVE_DIR}:/archive
       - ${INGEST_WORK_DIR}:/work
       - ${INGEST_SSH_DIR}:/ssh:ro
+    logging: *logging
+
+  analysis:
+    build:
+      context: ..
+      dockerfile: analysis/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgis:
+        condition: service_healthy
+    environment:
+      ANALYSIS_DB_DSN: postgresql://flightdb_analysis:${DB_ANALYSIS_PASSWORD}@postgis:5432/${POSTGRES_DB}
+      ANALYSIS_INTERVAL_S: ${ANALYSIS_INTERVAL_S:-300}
+      ANALYSIS_BER_LAT: ${ANALYSIS_BER_LAT}
+      ANALYSIS_BER_LON: ${ANALYSIS_BER_LON}
+      # Standardwerte wie in analysis/config.py (docs/analysis.md, Abschnitt Parameter).
+      ANALYSIS_SETTLE_S: ${ANALYSIS_SETTLE_S:-120}
+      ANALYSIS_FLIGHT_GAP_S: ${ANALYSIS_FLIGHT_GAP_S:-600}
+      ANALYSIS_MAX_SPEED_KT: ${ANALYSIS_MAX_SPEED_KT:-800}
+      ANALYSIS_CONTEXT_S: ${ANALYSIS_CONTEXT_S:-120}
+      ANALYSIS_MIN_POSITIONS: ${ANALYSIS_MIN_POSITIONS:-5}
+      ANALYSIS_VRATE_FPM: ${ANALYSIS_VRATE_FPM:-300}
+      ANALYSIS_BER_RADIUS_M: ${ANALYSIS_BER_RADIUS_M:-40000}
+      ANALYSIS_DEFAULT_RELEVANCE_FT: ${ANALYSIS_DEFAULT_RELEVANCE_FT:-10000}
+      ANALYSIS_MAX_LAG_S: ${ANALYSIS_MAX_LAG_S:-10800}
+      ANALYSIS_ZONES_FILE: /zones/geofences.geojson
+    volumes:
+      # Verzeichnis statt Datei: fehlt die Datei, legt Docker sonst einen leeren Ordner an.
+      - ${ZONES_DIR:-../config/local}:/zones:ro
+    logging: *logging
+
+  grafana:
+    image: grafana/grafana:13.2.6@sha256:b21409d7951ddcfd63a4b49083e4ef2cc35bc1437d071813bf82bfb238b00bca
+    restart: unless-stopped
+    depends_on:
+      postgis:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_DATE_FORMATS_DEFAULT_TIMEZONE: Europe/Berlin
+      POSTGRES_DB: ${POSTGRES_DB}
+      DB_READONLY_PASSWORD: ${DB_READONLY_PASSWORD}
+    volumes:
+      - ${GRAFANA_DATA_DIR}:/var/lib/grafana
+      - ../dashboard/provisioning:/etc/grafana/provisioning:ro
+      - ../dashboard/dashboards:/etc/grafana/dashboards:ro
+    ports:
+      - "${GRAFANA_LAN_PORT:-3001}:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
     logging: *logging
 
   backup:

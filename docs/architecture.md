@@ -32,7 +32,7 @@ Empfang und Verarbeitung sind räumlich getrennt:
 2. `recorder` liest die Flugzeugzustände von `readsb` in kurzen Intervallen und schreibt sie unverändert als zeilenweises JSON in stündlich rotierende, komprimierte Dateien. Abgeschlossene Dateien erhalten eine SHA-256-Prüfsumme.
 3. `ingest` auf dem NAS holt abgeschlossene Dateien ab, prüft die Prüfsumme, legt sie im Rohdaten-Archiv ab und lädt sie normalisiert in PostGIS.
 4. Erst nach bestätigter Archivierung werden Dateien auf dem Pi zur Löschung freigegeben (konfigurierbare Vorhaltezeit).
-5. `analysis` läuft zeitgesteuert als Batch und erzeugt Flüge, Überflugereignisse und Abweichungsbewertungen.
+5. `analysis` läuft alle 5 Minuten inkrementell und erzeugt Flüge und Überflugereignisse (Details: [analysis.md](analysis.md)).
 6. Grafana, API und n8n lesen ausschließlich aus PostGIS.
 
 ## Eigenschaften

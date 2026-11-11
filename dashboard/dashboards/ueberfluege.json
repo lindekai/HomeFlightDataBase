@@ -1,0 +1,726 @@
+{
+  "uid": "flightdb-ueberfluege",
+  "title": "Überflüge",
+  "tags": [
+    "flightdb"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "editable": true,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "type": "query",
+        "name": "zone",
+        "label": "Zone",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "flightdb"
+        },
+        "query": "SELECT name FROM geofences WHERE valid_to IS NULL ORDER BY name",
+        "definition": "SELECT name FROM geofences WHERE valid_to IS NULL ORDER BY name",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "type": "custom",
+        "name": "category",
+        "label": "Kategorie",
+        "query": "arrival,departure,overflight,unknown",
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [
+          {
+            "text": "arrival",
+            "value": "arrival",
+            "selected": true
+          },
+          {
+            "text": "departure",
+            "value": "departure",
+            "selected": false
+          },
+          {
+            "text": "overflight",
+            "value": "overflight",
+            "selected": false
+          },
+          {
+            "text": "unknown",
+            "value": "unknown",
+            "selected": false
+          }
+        ]
+      },
+      {
+        "type": "custom",
+        "name": "relevant",
+        "label": "Überflüge",
+        "query": "relevante,alle",
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "text": "relevante",
+          "value": "relevante"
+        },
+        "options": [
+          {
+            "text": "relevante",
+            "value": "relevante",
+            "selected": true
+          },
+          {
+            "text": "alle",
+            "value": "alle",
+            "selected": false
+          }
+        ]
+      },
+      {
+        "type": "custom",
+        "name": "bucket",
+        "label": "Intervall",
+        "query": "hour,day,week,month",
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "text": "day",
+          "value": "day"
+        },
+        "options": [
+          {
+            "text": "hour",
+            "value": "hour",
+            "selected": false
+          },
+          {
+            "text": "day",
+            "value": "day",
+            "selected": true
+          },
+          {
+            "text": "week",
+            "value": "week",
+            "selected": false
+          },
+          {
+            "text": "month",
+            "value": "month",
+            "selected": false
+          }
+        ]
+      }
+    ]
+  },
+  "links": [],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Überflüge heute",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS n FROM overflight_events e WHERE \n  e.geofence_id IN (SELECT id FROM geofences WHERE name IN ($zone))\n  AND e.category IN ($category)\n  AND (e.relevant OR '$relevant' = 'alle')\n  AND e.entry_ts >= date_trunc('day', now() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      },
+      "id": 1
+    },
+    {
+      "type": "stat",
+      "title": "Überflüge 7 Tage",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS n FROM overflight_events e WHERE \n  e.geofence_id IN (SELECT id FROM geofences WHERE name IN ($zone))\n  AND e.category IN ($category)\n  AND (e.relevant OR '$relevant' = 'alle')\n  AND e.entry_ts >= now() - interval '7 days'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      },
+      "id": 2
+    },
+    {
+      "type": "stat",
+      "title": "Überflüge 30 Tage",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS n FROM overflight_events e WHERE \n  e.geofence_id IN (SELECT id FROM geofences WHERE name IN ($zone))\n  AND e.category IN ($category)\n  AND (e.relevant OR '$relevant' = 'alle')\n  AND e.entry_ts >= now() - interval '30 days'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      },
+      "id": 3
+    },
+    {
+      "type": "stat",
+      "title": "Niedrigste Höhe im Zeitraum",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT min(e.min_alt_ft) AS ft FROM overflight_events e WHERE $__timeFilter(e.entry_ts) AND \n  e.geofence_id IN (SELECT id FROM geofences WHERE name IN ($zone))\n  AND e.category IN ($category)\n  AND (e.relevant OR '$relevant' = 'alle')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthft"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      },
+      "id": 4
+    },
+    {
+      "type": "stat",
+      "title": "Empfangsabdeckung im Zeitraum",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT 100 * sum(greatest(recorded_s - gap_s, 0)) / nullif(sum(day_s), 0) AS \"%\"\nFROM data_coverage_daily\nWHERE day BETWEEN ($__timeFrom())::timestamptz::date AND ($__timeTo())::timestamptz::date"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      },
+      "id": 5
+    },
+    {
+      "type": "timeseries",
+      "title": "Überflüge je Intervall (nach Kategorie)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT date_trunc('$bucket', e.entry_ts AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin' AS time,\n  e.category AS metric, count(*) AS value\nFROM overflight_events e\nWHERE $__timeFilter(e.entry_ts) AND \n  e.geofence_id IN (SELECT id FROM geofences WHERE name IN ($zone))\n  AND e.category IN ($category)\n  AND (e.relevant OR '$relevant' = 'alle')\nGROUP BY 1, 2 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 6
+    },
+    {
+      "type": "table",
+      "title": "Tageszeit × Wochentag",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 24,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT (ARRAY['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'])[extract(isodow FROM e.entry_ts AT TIME ZONE 'Europe/Berlin')::int] AS \"Tag\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 0) AS \"00\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 1) AS \"01\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 2) AS \"02\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 3) AS \"03\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 4) AS \"04\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 5) AS \"05\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 6) AS \"06\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 7) AS \"07\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 8) AS \"08\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 9) AS \"09\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 10) AS \"10\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 11) AS \"11\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 12) AS \"12\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 13) AS \"13\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 14) AS \"14\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 15) AS \"15\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 16) AS \"16\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 17) AS \"17\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 18) AS \"18\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 19) AS \"19\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 20) AS \"20\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 21) AS \"21\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 22) AS \"22\",\n  count(*) FILTER (WHERE extract(hour FROM e.entry_ts AT TIME ZONE 'Europe/Berlin') = 23) AS \"23\"\nFROM overflight_events e\nWHERE $__timeFilter(e.entry_ts) AND \n  e.geofence_id IN (SELECT id FROM geofences WHERE name IN ($zone))\n  AND e.category IN ($category)\n  AND (e.relevant OR '$relevant' = 'alle')\nGROUP BY extract(isodow FROM e.entry_ts AT TIME ZONE 'Europe/Berlin')\nORDER BY extract(isodow FROM e.entry_ts AT TIME ZONE 'Europe/Berlin')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellOptions": {
+              "type": "color-background"
+            }
+          },
+          "color": {
+            "mode": "continuous-YlRd"
+          }
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 7
+    },
+    {
+      "type": "barchart",
+      "title": "Höhenverteilung (niedrigste Höhe je Überflug)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT to_char(floor(e.min_alt_ft / 1000.0) * 1000, 'FM99990') AS \"ab ft\", count(*) AS n\nFROM overflight_events e\nWHERE $__timeFilter(e.entry_ts) AND \n  e.geofence_id IN (SELECT id FROM geofences WHERE name IN ($zone))\n  AND e.category IN ($category)\n  AND (e.relevant OR '$relevant' = 'alle') AND e.min_alt_ft IS NOT NULL\nGROUP BY floor(e.min_alt_ft / 1000.0) ORDER BY floor(e.min_alt_ft / 1000.0)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "xField": "ab ft"
+      },
+      "id": 8
+    },
+    {
+      "type": "barchart",
+      "title": "Flugrichtung",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 19,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT e.heading_sector AS \"Richtung\", count(*) AS n\nFROM overflight_events e\nWHERE $__timeFilter(e.entry_ts) AND \n  e.geofence_id IN (SELECT id FROM geofences WHERE name IN ($zone))\n  AND e.category IN ($category)\n  AND (e.relevant OR '$relevant' = 'alle') AND e.heading_sector IS NOT NULL\nGROUP BY e.heading_sector ORDER BY min(array_position(ARRAY['N','NO','O','SO','S','SW','W','NW'], e.heading_sector))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "xField": "Richtung"
+      },
+      "id": 9
+    },
+    {
+      "type": "piechart",
+      "title": "Kategorien (heuristisch)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 19,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT e.category AS \"Kategorie\", count(*) AS n\nFROM overflight_events e\nWHERE $__timeFilter(e.entry_ts) AND \n  e.geofence_id IN (SELECT id FROM geofences WHERE name IN ($zone))\n  AND e.category IN ($category)\n  AND (e.relevant OR '$relevant' = 'alle')\nGROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": []
+        }
+      },
+      "description": "Anflug/Abflug ist eine Näherung aus Höhenverlauf und Abstand zu BER, keine Verfahrenszuordnung.",
+      "id": 10
+    },
+    {
+      "type": "table",
+      "title": "Tiefste Überflüge",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT e.entry_ts AS \"Zeit\", f.callsign AS \"Rufzeichen\", f.icao24 AS \"ICAO24\",\n  e.min_alt_ft AS \"Höhe ft\", round(e.min_dist_m) AS \"Abstand m\", e.category AS \"Kategorie\",\n  g.name AS \"Zone\", e.n_positions_inside AS \"Positionen\",\n  round(e.max_position_gap_s) AS \"max. Lücke s\",\n  e.in_reception_gap AS \"Empfangslücke\", e.flight_id,\n  (extract(epoch FROM f.first_ts) * 1000)::bigint AS t_from,\n  (extract(epoch FROM f.last_ts) * 1000)::bigint AS t_to\nFROM overflight_events e\nJOIN flights f ON f.id = e.flight_id\nJOIN geofences g ON g.id = e.geofence_id\nWHERE $__timeFilter(e.entry_ts) AND \n  e.geofence_id IN (SELECT id FROM geofences WHERE name IN ($zone))\n  AND e.category IN ($category)\n  AND (e.relevant OR '$relevant' = 'alle')\nORDER BY e.min_alt_ft NULLS LAST LIMIT 50"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "flight_id"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "t_from"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "t_to"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Rufzeichen"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Flugspur",
+                    "url": "/d/flightdb-flugspur/flugspur?var-flight_id=${__data.fields.flight_id}&from=${__data.fields.t_from}&to=${__data.fields.t_to}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {},
+      "id": 11
+    },
+    {
+      "type": "geomap",
+      "title": "Spuren und Zonen",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "flightdb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 37,
+        "w": 24,
+        "h": 14
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH ev AS (\n  SELECT DISTINCT e.flight_id FROM overflight_events e\n  WHERE $__timeFilter(e.entry_ts) AND \n  e.geofence_id IN (SELECT id FROM geofences WHERE name IN ($zone))\n  AND e.category IN ($category)\n  AND (e.relevant OR '$relevant' = 'alle')\n)\nSELECT round(ST_Y(d.geom)::numeric, 3)::float AS latitude,\n  round(ST_X(d.geom)::numeric, 3)::float AS longitude, count(*) AS n\nFROM flights f JOIN ev ON ev.flight_id = f.id, LATERAL ST_DumpPoints(f.track) d\nGROUP BY 1, 2"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "flightdb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT g.name AS zone, ST_Y(d.geom) AS latitude, ST_X(d.geom) AS longitude\nFROM geofences g, LATERAL ST_DumpPoints(g.geom) d\nWHERE g.valid_to IS NULL AND g.name IN ($zone)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "view": {
+          "id": "fit",
+          "allLayers": true,
+          "padding": 5
+        },
+        "controls": {
+          "showZoom": true,
+          "mouseWheelZoom": true
+        },
+        "basemap": {
+          "type": "default",
+          "name": "Karte"
+        },
+        "layers": [
+          {
+            "type": "heatmap",
+            "name": "Spuren",
+            "filterData": {
+              "id": "byRefId",
+              "options": "A"
+            },
+            "location": {
+              "mode": "coords",
+              "latitude": "latitude",
+              "longitude": "longitude"
+            },
+            "config": {
+              "blur": 15,
+              "radius": 4,
+              "weight": {
+                "field": "n",
+                "fixed": 1,
+                "min": 0,
+                "max": 1
+              }
+            }
+          },
+          {
+            "type": "markers",
+            "name": "Zonen",
+            "filterData": {
+              "id": "byRefId",
+              "options": "B"
+            },
+            "location": {
+              "mode": "coords",
+              "latitude": "latitude",
+              "longitude": "longitude"
+            },
+            "config": {
+              "style": {
+                "size": {
+                  "fixed": 2
+                },
+                "color": {
+                  "fixed": "dark-red"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "id": 12
+    }
+  ]
+}

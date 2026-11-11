@@ -1,14 +1,21 @@
+import base64
+import json
 import subprocess
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
+import build_dashboards
 import psycopg
 import pytest
+from dashboard_sql import substitute
 
 pytestmark = pytest.mark.e2e
 
 COMPOSE = ["docker", "compose", "-f", str(Path(__file__).parent / "compose.yml")]
 DSN = "postgresql://flightdb_admin:admin@localhost:55433/flightdb"
+GRAFANA = "http://localhost:3002"
 
 
 @pytest.fixture(scope="module")
@@ -17,7 +24,10 @@ def stack():
     try:
         yield
     finally:
-        subprocess.run([*COMPOSE, "logs", "--no-color", "recorder", "ingest"], check=False)
+        subprocess.run(
+            [*COMPOSE, "logs", "--no-color", "recorder", "ingest", "analysis", "grafana"],
+            check=False,
+        )
         subprocess.run([*COMPOSE, "down", "-v"], check=True)
 
 
@@ -32,7 +42,7 @@ def wait_for(condition, timeout=240):
         try:
             if condition():
                 return
-        except psycopg.Error:
+        except (psycopg.Error, OSError):
             pass
         time.sleep(3)
     pytest.fail("Zeitüberschreitung beim Warten")
@@ -79,3 +89,50 @@ def test_connection_outage_loses_nothing(stack):
     expected = receiver_digests()
     assert len(expected) >= 5
     wait_for(lambda: expected <= ingested_digests())
+
+
+def grafana(path, payload=None):
+    req = urllib.request.Request(
+        GRAFANA + path,
+        data=None if payload is None else json.dumps(payload).encode(),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Basic " + base64.b64encode(b"admin:admin").decode(),
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        return json.load(e)
+
+
+def test_analysis_builds_one_flight_and_event_per_aircraft(stack):
+    wait_for(lambda: query("SELECT count(*) FROM overflight_events")[0] >= 3)
+    assert query("SELECT count(*), count(DISTINCT icao24) FROM flights") == (3, 3)
+    assert query("SELECT count(*) FROM overflight_events") == (3,)
+    assert query("SELECT count(*) FROM analysis_runs WHERE status = 'failed'") == (0,)
+
+
+def test_grafana_provisions_dashboards_and_runs_queries(stack):
+    wait_for(lambda: grafana("/api/health").get("database") == "ok")
+    uids = {d["uid"] for d in grafana("/api/search?type=dash-db")}
+    assert {"flightdb-ueberfluege", "flightdb-datenqualitaet", "flightdb-flugspur"} <= uids
+    for name, dashboard in build_dashboards.build().items():
+        for sql in build_dashboards.queries(dashboard):
+            res = grafana(
+                "/api/ds/query",
+                {
+                    "from": "now-1h",
+                    "to": "now",
+                    "queries": [
+                        {
+                            "refId": "A",
+                            "datasource": {"uid": "flightdb"},
+                            "rawSql": substitute(sql, macros=False),
+                            "format": "table",
+                        }
+                    ],
+                },
+            )
+            assert "error" not in res["results"]["A"], (name, sql, res)

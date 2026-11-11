@@ -42,6 +42,24 @@ Je Zeile ein JSON-Objekt mit `type`, `recorder_ts` (UTC), `receiver_id`, `record
 | `rssi_dbfs` | Signalstärke |
 | `raw_file_id` | Herkunft: Datensatz in `raw_files` |
 
+## Auswertung (Meilenstein 3)
+
+| Tabelle / View | Bedeutung |
+|---|---|
+| `geofences` | Zonen mit Gültigkeitszeitraum; Änderungen erzeugen eine neue Fassung |
+| `flights` | zusammenhängende Spur eines Flugzeugs (`LineStringM`, M = Unix-Zeit) |
+| `overflight_events` | eine Durchquerung einer Zonenfassung mit Kennwerten, Einstufung und Datenqualität |
+| `analysis_runs` | jeder Lauf mit Art, Version, Parametern, Zeitfenster und Ergebnis |
+| `overflights_daily` | Überflüge je Tag (Europe/Berlin), Zone, Kategorie, Relevanz |
+| `data_coverage_daily` | aufgezeichnete Sekunden je Tag (`recorded_s`) und Empfangslücken innerhalb der Dateizeiträume (`gap_s`, Überlappungen einmal) |
+
+`overflight_events.min_alt_ft` ist die niedrigste barometrische Höhe des Ereignisses. Sie
+berücksichtigt die Positionen innerhalb der Zone und die an Ein- und Austritt interpolierten
+Höhen (Details: [analysis.md](analysis.md#überflugereignisse)).
+
+Herkunft eines Ereignisses: `overflight_events.analysis_run_id` → Parameter und Version;
+`flight_id` → `flights` → Positionen des Flugzeugs im Zeitraum → `raw_file_id`.
+
 ## Herkunftskette
 
 `positions.raw_file_id` → `raw_files.path` + `sha256` → Datei im Archiv → `.sha256`.
@@ -49,4 +67,5 @@ Jede Position ist damit auf eine unveränderte, prüfsummengesicherte Rohdatei z
 
 ## Rollen
 
-`flightdb_admin` (Eigentümer), `flightdb_ingest` (schreibt), `flightdb_reader` (liest; n8n, Grafana).
+`flightdb_admin` (Eigentümer), `flightdb_ingest` (schreibt Erfassung), `flightdb_analysis`
+(liest Erfassung, schreibt Auswertung), `flightdb_reader` (liest; n8n, Grafana).

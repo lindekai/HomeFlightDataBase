@@ -1,7 +1,7 @@
-# Nur Werkzeugkonfiguration; recorder und ingest werden als Container gebaut.
+# Nur Werkzeugkonfiguration; recorder, ingest und analysis werden als Container gebaut.
 
 [tool.pytest.ini_options]
-pythonpath = ["receiver/recorder/src", "ingest/src", "tests/fixtures"]
+pythonpath = ["receiver/recorder/src", "ingest/src", "analysis/src", "scripts", "dashboard", "tests/fixtures"]
 testpaths = ["tests"]
 addopts = "-m 'not e2e'"
 markers = [

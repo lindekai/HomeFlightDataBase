@@ -8,3 +8,5 @@ Jede wesentliche technische Entscheidung wird als kurze, nummerierte Datei dokum
 | [0002](0002-rohdaten-zuerst.md) | Rohdaten zuerst als Datei, dann Datenbank | angenommen |
 | [0003](0003-pull-durch-nas.md) | NAS holt Daten vom Empfänger ab (Pull) | angenommen |
 | [0004](0004-eigene-postgis-instanz.md) | Eigene PostGIS-Instanz, getrennt von n8n | angenommen |
+| [0005](0005-eigener-analyse-dienst.md) | Eigener Analyse-Dienst | angenommen |
+| [0006](0006-heuristische-einstufung.md) | Heuristische Einstufung Anflug/Abflug | angenommen |
