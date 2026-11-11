@@ -23,6 +23,7 @@ class Counts:
     flights: int = 0
     events: int = 0
     skipped: int = 0
+    assessments: int = 0
 
 
 def schema_ready(conn: psycopg.Connection) -> bool:
