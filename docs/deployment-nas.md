@@ -68,8 +68,12 @@ Migration ohne Passwort an. Einmalig:
 
 ```bash
 sudo docker compose exec postgis psql -U flightdb_admin -d flightdb \
-  -c "ALTER ROLE flightdb_analysis LOGIN PASSWORD '<DB_ANALYSIS_PASSWORD>'"
+  -c "ALTER ROLE flightdb_analysis LOGIN"
+sudo docker compose exec -it postgis psql -U flightdb_admin -d flightdb
 ```
+
+In `psql` dann `\password flightdb_analysis` eingeben und den Wert von `DB_ANALYSIS_PASSWORD`
+aus `.env` setzen, mit `\q` beenden. So landet das Passwort nicht in der Shell-History.
 
 ## 6. Prüfen
 

@@ -109,7 +109,8 @@ Alle ergebnisrelevanten Parameter eines Laufs stehen in `analysis_runs.params`.
      > config/local/geofences.geojson
    ```
 
-4. Ergebnis lokal prüfen, z. B. in QGIS (Datei als Vektorlayer öffnen), dann `analysis zones`.
+4. Ergebnis lokal prüfen, z. B. in QGIS (Datei als Vektorlayer öffnen), dann Zonen laden
+   (`python -m analysis zones`, siehe [Befehle](#befehle)).
    Die Datei nicht auf fremde Webseiten hochladen: Die Zonen beschreiben das Wohnumfeld.
 
 Ortsteile sind in OSM teils mit anderem `admin_level` oder als `boundary=place` erfasst; dann die
@@ -124,3 +125,45 @@ sudo docker compose exec analysis python -m analysis rebuild --from 2026-11-01 -
 ```
 
 Zonenänderungen wirken nur auf neue Läufe; für zurückliegende Zeiträume `rebuild` ausführen.
+Nach einem `ingest rebuild` ebenfalls `analysis rebuild` für denselben Zeitraum ausführen: Neu
+registrierte Rohdateien behalten ihr `fetched_at`, die Erkennung von Nachlieferungen greift dann
+nicht.
+
+## Bekannte Grenzen
+
+- **Warteschleifen und Schleifenflüge:** Kreuzt eine Spur sich selbst innerhalb einer Zone, kann
+  ein Überflug in mehrere Ereignisse zerfallen. Der Zeitpunkt der größten Annäherung wird auf der
+  ganzen Spur interpoliert und kann dann auf den anderen Durchgang fallen.
+- **Fenstergrenze:** Beginnt ein Flugzeug kurz vor dem Ende eines Laufs mit nur einer gültigen
+  Position, wird dieser eine Punkt verworfen und im nächsten Lauf nicht nachgeholt.
+- **Ausreißer:** Gemessen wird immer gegen die letzte gültige Position. Nur ein falscher
+  Startpunkt wird durch die folgende Position ersetzt. Ist später eine falsche Position als gültig
+  übernommen worden, können die richtigen Positionen danach als Ausreißer verworfen werden.
+- **Erstinstallation mit Bestand:** Bis der erste Lauf fertig ist, meldet `health` einen Rückstand
+  und der Container ist „unhealthy“.
+- **Abgebrochene Läufe:** Wird der Container während eines Laufs gestoppt, bleibt die Zeile in
+  `analysis_runs` auf `running`. Das Wasserzeichen ist davon nicht betroffen.
+- **Empfangsabdeckung:** `recorded_s` in `data_coverage_daily` summiert überlappende
+  Dateizeiträume. Der Filter im Kennzahlen-Panel schneidet Tage in UTC, die übrigen Panels in
+  Europe/Berlin; am Rand des Zeitraums kann ein Tag fehlen oder hinzukommen.
+- **Einstufung:** heuristisch, siehe [ADR 0006](decisions/0006-heuristische-einstufung.md).
+
+## Offene Punkte
+
+Aus der Prüfung von Meilenstein 3, ohne Einfluss auf die Ergebnisse:
+
+- Fehlermeldungen: `NoZones`/`SchemaMissing` im Dauerbetrieb mit Stacktrace statt kurzer
+  Meldung; ungültige Zonenattribute (`relevance_max_alt_ft`, Nicht-Objekt-Features) ergeben
+  `ValueError`/`AttributeError` statt `ZoneError`; `true` wird als Radius akzeptiert.
+- Robustheit: `unlock` im `finally` kann einen ursprünglichen Verbindungsfehler verdecken.
+- `osm_to_geofences.py`: Relation ohne äußere Geometrie ergibt ein leeres Polygon statt eines
+  frühen Fehlers; innere Ringe ohne passenden Außenring werden stillschweigend verworfen; falsch
+  formatiertes `--circle` ergibt eine unverständliche Fehlermeldung.
+- Dashboards: leere Zonenauswahl ergibt einen SQL-Fehler statt „keine Daten“; Vorauswahl der
+  Kategorie-Variable widersprüchlich; Live-Karten-Link auch bei leerer Variable;
+  `check_dashboards.py` erkennt Koordinaten in Zeichenketten und SQL-Literalen nicht.
+- Tests: fehlende Fälle für Pause genau `gap_s`, Sinken bei Entfernung, gemischte `baro_rate`,
+  Umkehr-Zweig der Durchquerung, Advisory-Lock, `SchemaMissing`, CLI-Befehle `once`/`rebuild`/
+  `run`, MultiPolygon und CLI von `osm_to_geofences.py`; Dashboard-Abfragen nur auf
+  Ausführbarkeit geprüft; Inhaltstest für `overflights_daily`; E2E-Analyse-Test prüft exakte
+  Anzahl ohne erneutes Warten; Grafana-E2E meldet Fehlerantworten als `KeyError`.
