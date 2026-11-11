@@ -7,6 +7,8 @@ from analysis.config import Config
 
 ROOT = Path(__file__).resolve().parents[2]
 REQUIRED = {"ANALYSIS_DB_DSN", "ANALYSIS_BER_LAT", "ANALYSIS_BER_LON"}
+# Feste Pfade im Container, kein Standardwert über .env
+FIXED = {"ANALYSIS_ZONES_FILE", "ANALYSIS_PROCEDURES_FILE"}
 
 
 def _documented() -> set[str]:
@@ -15,14 +17,19 @@ def _documented() -> set[str]:
     return set(re.findall(r"`(ANALYSIS_[A-Z_]+)`", section))
 
 
+def _compose() -> str:
+    return (ROOT / "nas" / "docker-compose.yml").read_text(encoding="utf-8")
+
+
 def _compose_defaults() -> dict[str, str]:
-    text = (ROOT / "nas" / "docker-compose.yml").read_text(encoding="utf-8")
-    return dict(re.findall(r"(ANALYSIS_[A-Z_]+): \$\{\1:-([^}]+)\}", text))
+    # Leerer Standard (``${X:-}``) bedeutet „nicht gesetzt“.
+    return dict(re.findall(r"(ANALYSIS_[A-Z_]+): \$\{\1:-([^}]*)\}", _compose()))
 
 
 def test_compose_passes_documented_analysis_vars():
-    defaults = _compose_defaults()
-    missing = _documented() - REQUIRED - set(defaults)
+    passed = set(re.findall(r"^\s+(ANALYSIS_[A-Z_]+):", _compose(), re.M))
+    assert _documented() - passed == set()
+    missing = _documented() - REQUIRED - FIXED - set(_compose_defaults())
     assert missing == set()
 
 

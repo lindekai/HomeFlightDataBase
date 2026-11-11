@@ -78,6 +78,19 @@ Plätzen oder Hubschrauber können als `overflight` oder `unknown` erscheinen.
 | `ANALYSIS_BER_LAT`, `ANALYSIS_BER_LON` | – | Flughafen-Referenzpunkt |
 | `ANALYSIS_DEFAULT_RELEVANCE_FT` | 10000 | Relevanzgrenze, wenn die Zone keine angibt |
 | `ANALYSIS_MAX_LAG_S` | 10800 | Höchster Rückstand des Wasserzeichens für `health` (drei Rotationen der Rohdateien, damit eine frisch eingelesene Stundendatei vor dem nächsten Lauf keinen Fehlalarm auslöst) |
+| `ANALYSIS_PROCEDURES_FILE` | – | Verfahrensdatei (im NAS-Stack `/zones/procedures.yaml`); fehlt sie, entfällt der Routenvergleich |
+| `ANALYSIS_ROLE_NEAR_M` | 10000 | Umkreis um BER, in dem ein Abflug beginnt bzw. ein Anflug endet |
+| `ANALYSIS_ROLE_MAX_ALT_FT` | 3000 | Höhe, unter der der Flug dort sein muss |
+| `ANALYSIS_DIRECTION_DIST_M` | 15000 | Abstand, bis zu dem der Bezugskurs gemessen wird |
+| `ANALYSIS_DIRECTION_TOL_DEG` | 30 | Größte Abweichung des Bezugskurses vom Startbahnkurs |
+| `ANALYSIS_DIRECTION_MIN_FLIGHTS` | 3 | Mindestzahl Stimmen je 30-Minuten-Fenster |
+| `ANALYSIS_DIRECTION_MIN_SHARE` | 0.8 | Mindestanteil der Mehrheit im Fenster |
+| `ANALYSIS_ASSIGN_RATIO` | 2.0 | Faktor, um den das zweitbeste Verfahren weiter entfernt sein muss |
+| `ANALYSIS_ROUTE_MAX_ALT_FT` | leer | Höhengrenze des bewerteten Abschnitts (leer = keine) |
+| `ANALYSIS_CORRIDOR_M` | 1852 | Halbe Korridorbreite |
+| `ANALYSIS_CORRIDOR_MIN_S` | 30 | Mindestdauer außerhalb des Korridors für eine Abweichung |
+| `ANALYSIS_APPROACH_TOL_M` | = Korridor | Toleranz für eine auffällige Annäherung |
+| `ANALYSIS_REVIEW_MAX_GAP_S` | 30 | Größte Positionslücke im bewerteten Abschnitt für einen Prüffall |
 
 Alle ergebnisrelevanten Parameter eines Laufs stehen in `analysis_runs.params`.
 
