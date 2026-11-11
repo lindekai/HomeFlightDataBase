@@ -17,6 +17,7 @@ def env(monkeypatch, tmp_path):
     for k, v in ENV.items():
         monkeypatch.setenv(k, v)
     monkeypatch.delenv("ANALYSIS_ZONES_FILE", raising=False)
+    monkeypatch.delenv("ANALYSIS_PROCEDURES_FILE", raising=False)
     hb = tmp_path / "hb"
     monkeypatch.setenv("ANALYSIS_HEARTBEAT_FILE", str(hb))
     monkeypatch.setenv("ANALYSIS_INTERVAL_S", "10")
@@ -41,3 +42,13 @@ def test_health_fresh_heartbeat_but_db_unreachable_fails(env):
 
 def test_zones_without_file_is_error(env):
     assert cli.main(["zones"]) == 2
+
+
+def test_procedures_without_file_is_error(env):
+    assert cli.main(["procedures"]) == 2
+
+
+def test_invalid_procedures_file_fails_before_database(env, tmp_path):
+    bad = tmp_path / "procedures.yaml"
+    bad.write_text("waypoints: []\n", encoding="utf-8")
+    assert cli.main(["procedures", str(bad)]) == 1

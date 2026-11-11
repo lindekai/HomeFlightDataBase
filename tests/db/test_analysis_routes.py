@@ -267,3 +267,21 @@ def test_altitude_limit_uses_stored_altitudes(db_dsns, cfg):
     assert q(db_dsns["reader"], "SELECT eval_from, eval_to FROM flight_assessments") == [
         (T0, T0 + timedelta(seconds=75))
     ]
+
+
+def test_invalid_file_keeps_previous_version(db_dsns, cfg, tmp_path, monkeypatch):
+    from analysis import cli
+
+    bad = tmp_path / "procedures.yaml"
+    bad.write_text(PROCEDURES_FILE.read_text("utf-8").replace("route: [TWEST,", "route: [XXXXX,"))
+    for k, v in {
+        "ANALYSIS_DB_DSN": db_dsns["analysis"],
+        "ANALYSIS_BER_LAT": "50",
+        "ANALYSIS_BER_LON": "10",
+    }.items():
+        monkeypatch.setenv(k, v)
+
+    assert cli.main(["procedures", str(bad)]) == 1
+    assert q(db_dsns["reader"], "SELECT count(*) FROM procedures WHERE superseded_at IS NULL") == [
+        (8,)
+    ]

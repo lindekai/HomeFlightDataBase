@@ -1,4 +1,4 @@
-"""Kommandozeile: ``python -m analysis {run|once|rebuild|zones|health}``."""
+"""Kommandozeile: ``python -m analysis {run|once|rebuild|zones|procedures|health}``."""
 
 from __future__ import annotations
 
@@ -14,7 +14,8 @@ import psycopg
 from analysis import __version__
 from analysis.config import Config
 from analysis.logjson import setup_logging
-from analysis.pipeline import rebuild, run_once, sync_zones, watermark_lag_s
+from analysis.pipeline import rebuild, run_once, sync_procedures, sync_zones, watermark_lag_s
+from analysis.procedures import ProcedureError
 
 log = logging.getLogger("analysis")
 
@@ -54,6 +55,7 @@ def _log_result(result) -> None:
                 "flights": result.flights,
                 "events": result.events,
                 "skipped": result.skipped,
+                "assessments": result.assessments,
             },
         )
 
@@ -61,6 +63,14 @@ def _log_result(result) -> None:
 def _iteration(cfg: Config) -> None:
     if cfg.zones_file is not None:
         sync_zones(cfg, cfg.zones_file)
+    if cfg.procedures_file is not None and cfg.procedures_file.is_file():
+        try:
+            sync_procedures(cfg, cfg.procedures_file)
+        except ProcedureError as e:
+            log.error(
+                "Verfahrensdatei ungültig – bisherige Fassung bleibt aktiv",
+                extra={"error": str(e)},
+            )
     _log_result(run_once(cfg))
     cfg.heartbeat_file.touch()
 
@@ -73,6 +83,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("health", help="Healthcheck")
     zp = sub.add_parser("zones", help="Zonendatei laden")
     zp.add_argument("file", nargs="?")
+    pp = sub.add_parser("procedures", help="Verfahrensdatei laden")
+    pp.add_argument("file", nargs="?")
     rb = sub.add_parser("rebuild", help="Zeitraum neu berechnen")
     rb.add_argument("--from", dest="start", type=_date, required=True)
     rb.add_argument("--to", dest="end", type=_date, required=True)
@@ -90,6 +102,18 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         result = sync_zones(cfg, path)
         log.info("Zonen geladen", extra={"changed": result.changed, "removed": result.removed})
+        return 0
+    if args.cmd == "procedures":
+        path = Path(args.file) if args.file else cfg.procedures_file
+        if path is None:
+            log.error("keine Verfahrensdatei angegeben (Argument oder ANALYSIS_PROCEDURES_FILE)")
+            return 2
+        try:
+            result = sync_procedures(cfg, path)
+        except ProcedureError as e:
+            log.error("Verfahrensdatei ungültig", extra={"error": str(e)})
+            return 1
+        log.info("Verfahren geladen", extra={"changed": result.changed, "removed": result.removed})
         return 0
     if args.cmd == "once":
         _iteration(cfg)
